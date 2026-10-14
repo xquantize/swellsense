@@ -3,14 +3,17 @@
 ``ingest`` downloads sources and prints one count line per source.
 ``tides`` prints Tauranga high and low waters for one day.
 ``forecast`` prints hourly swell and wind for one spot.
+``check`` rates a spot, or ranks every spot by its best hour.
 """
 
 import argparse
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import httpx
 
+from swellsense.conditions.rating import HourRating
+from swellsense.conditions.report import ConditionsReport, build_report, rank_spots
 from swellsense.forecast.models import SpotForecast
 from swellsense.forecast.openmeteo import fetch_forecast
 from swellsense.ingest.fetchers.mediawiki import make_client
@@ -64,6 +67,28 @@ def _main(argv: list[str] | None = None) -> int:
         help="How many hours to fetch (default: 12)",
     )
 
+    check_parser = subparsers.add_parser(
+        "check",
+        help="Rate one spot, or rank every spot by its best hour",
+    )
+    check_parser.add_argument(
+        "spot_id",
+        nargs="?",
+        metavar="SPOT",
+        help="Spot to rate (omit with --all)",
+    )
+    check_parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Rank every spot by its best hour",
+    )
+    check_parser.add_argument(
+        "--hours",
+        type=_hours_arg,
+        default=12,
+        help="How many hours to rate (default: 12)",
+    )
+
     args = parser.parse_args(argv)
     if args.command == "ingest":
         return _ingest(args.source)
@@ -71,6 +96,8 @@ def _main(argv: list[str] | None = None) -> int:
         return _tides(args.date)
     if args.command == "forecast":
         return _forecast(args.spot_id, args.hours)
+    if args.command == "check":
+        return _check(args.spot_id, args.all, args.hours)
     return 2
 
 
@@ -112,6 +139,10 @@ def _hours_arg(value: str) -> int:
 
 def _today_nz() -> date:
     return datetime.now(AUCKLAND).date()
+
+
+def _now_nz() -> datetime:
+    return datetime.now(AUCKLAND)
 
 
 def _tides(day: date | None) -> int:
@@ -157,6 +188,144 @@ def _forecast(spot_id: str, hours: int) -> int:
 
     _print_forecast(spot, forecast)
     return 0
+
+
+def _check(spot_id: str | None, all_spots: bool, hours: int) -> int:
+    """Print one spot's hours, or every spot ranked by its best hour."""
+    if all_spots and spot_id is not None:
+        print("pass a spot id or --all, not both", file=sys.stderr)
+        return 2
+    if not all_spots and spot_id is None:
+        print("pass a spot id or --all", file=sys.stderr)
+        return 2
+
+    try:
+        spots = load_spots()
+        if spot_id is not None:
+            spots = [get_spot(spots, spot_id)]
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    start, end = _check_window(hours)
+    try:
+        events = _load_tide_events(start, end)
+    except httpx.HTTPError as exc:
+        print(f"could not download Tauranga tides: {exc}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    forecasts: list[SpotForecast] = []
+    try:
+        with make_client() as client:
+            for spot in spots:
+                forecasts.append(fetch_forecast(client, spot, hours))
+    except httpx.HTTPError as exc:
+        print(f"could not download the forecast: {exc}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    try:
+        reports = [
+            build_report(spot, forecast, events, start, end)
+            for spot, forecast in zip(spots, forecasts, strict=True)
+        ]
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if all_spots:
+        _print_ranking(rank_spots(reports))
+    else:
+        _print_check(reports[0])
+    return 0
+
+
+def _check_window(hours: int) -> tuple[datetime, datetime]:
+    """The next ``hours`` clock hours, starting at the current Auckland hour."""
+    start = _now_nz().replace(minute=0, second=0, microsecond=0)
+    return start, start + timedelta(hours=hours)
+
+
+def _load_tide_events(start: datetime, end: datetime) -> list[TideEvent]:
+    """Load every Tauranga year the window touches.
+
+    A check that starts on New Year's Eve needs the next year's file as well,
+    or the last hours would have no tide.
+    """
+    last = end - timedelta(microseconds=1)
+    events: list[TideEvent] = []
+    for year in range(start.year, last.year + 1):
+        text = download_year(year).read_text(encoding="utf-8-sig")
+        events.extend(parse_predictions(text))
+    return events
+
+
+def _print_check(report: ConditionsReport) -> None:
+    print(f"{report.spot_name} ({report.spot_id}) (Pacific/Auckland)")
+    for hour in report.hours:
+        clock = hour.time.strftime("%Y-%m-%d %H:%M")
+        print(f"{clock}  {hour.score:>2}  {hour.label}")
+        print(f"  wind: {hour.wind.reason}")
+        print(f"  swell: {hour.swell.reason}")
+        print(f"  tide: {hour.tide.reason}")
+        print(f"  {_score_parts(hour)}")
+    _print_notes(report)
+
+
+def _score_parts(hour: HourRating) -> str:
+    parts = hour.contributions
+    return (
+        f"score: swell {parts.swell.points:+d}, wind {parts.wind.points:+d}, "
+        f"window {parts.window.points:+d}, tide {parts.tide.points:+d}"
+    )
+
+
+def _print_notes(report: ConditionsReport) -> None:
+    print()
+    print("Uncertainties")
+    for item in report.uncertainties:
+        print(f"- {item}")
+    print()
+    print("Hazards")
+    if report.hazards:
+        for hazard in report.hazards:
+            print(f"- {hazard}")
+    else:
+        print("- none")
+    print()
+    for line in report.attributions:
+        print(line)
+
+
+def _print_ranking(reports: list[ConditionsReport]) -> None:
+    print("Ranked by best hour (Pacific/Auckland)")
+    print(f"{'score':>5}  {'label':<5}  {'best hour':<16}  spot")
+    for report in reports:
+        best = report.best_hour
+        if best is None:
+            clock = "-"
+            score = "-"
+            label = "-"
+        else:
+            clock = best.time.strftime("%Y-%m-%d %H:%M")
+            score = str(best.score)
+            label = best.label
+        print(
+            f"{score:>5}  {label:<5}  {clock:<16}  {report.spot_name} ({report.spot_id})"
+        )
+    print()
+    seen: list[str] = []
+    for report in reports:
+        for line in report.attributions:
+            if line not in seen:
+                seen.append(line)
+    for line in seen:
+        print(line)
 
 
 def _print_forecast(spot: Spot, forecast: SpotForecast) -> None:
