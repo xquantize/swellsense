@@ -80,6 +80,7 @@ code, with short docstrings explaining why.
 Work on the current roadmap stage unless asked otherwise. Don't build ahead.
 
 ## Coding rules
+- Edited Python files are auto-formatted by a hook.
 - Tests must never call the network or the LLM. Mock them.
 - Keep changes small, one concern per pull request.
 - Update the README and this file's roadmap when things change.
