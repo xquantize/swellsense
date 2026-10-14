@@ -59,6 +59,7 @@ code, with short docstrings explaining why.
 - `src/swellsense/spots/`: spot profiles and the registry that loads them
 - `src/swellsense/tides/`: LINZ Tauranga predictions and tide state at a time
 - `src/swellsense/forecast/`: Open-Meteo swell and wind for one spot
+- `src/swellsense/conditions/`: wind, swell and tide judgements for one spot
 - `src/swellsense/chatbot.py`: terminal chat
 - `src/swellsense/cli.py`: the `swellsense` command
 - `data/sources.yaml`: all data sources
@@ -81,7 +82,7 @@ code, with short docstrings explaining why.
 2. [x] Knowledge ingestion: source registry, fetching, raw storage
 3. [ ] Processing: cleaning, chunking, local embeddings, Postgres + pgvector (in progress)
 4. [ ] Grounded chat: retrieval with citations
-5. [ ] Live conditions: Open-Meteo forecast and LINZ tides are in; the conditions check is still to come
+5. [ ] Live conditions: Open-Meteo forecast, LINZ tides, and wind, swell and tide classifiers are in; the combined conditions check is still to come
 6. [ ] Spots and maps: spot data and profiles, "where to surf" recommendations
 7. [ ] Board advice grounded in sources
 8. [ ] Session logbook and personalisation
