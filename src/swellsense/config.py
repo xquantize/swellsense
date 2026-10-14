@@ -15,6 +15,7 @@ class Settings(BaseSettings):
         "SwellSense/0.1 (learning project; contact: set HTTP_USER_AGENT)"
     )
     http_timeout_s: float = 30
+    request_delay_s: float = 1.0
 
 
 @lru_cache

@@ -138,6 +138,7 @@ def test_request_sends_user_agent_and_expected_params(monkeypatch):
 def test_http_settings_defaults(monkeypatch):
     monkeypatch.delenv("HTTP_USER_AGENT", raising=False)
     monkeypatch.delenv("HTTP_TIMEOUT_S", raising=False)
+    monkeypatch.delenv("REQUEST_DELAY_S", raising=False)
 
     settings = Settings(_env_file=None)
 
@@ -145,6 +146,7 @@ def test_http_settings_defaults(monkeypatch):
         "SwellSense/0.1 (learning project; contact: set HTTP_USER_AGENT)"
     )
     assert settings.http_timeout_s == 30
+    assert settings.request_delay_s == 1.0
 
 
 def test_make_client_uses_settings_user_agent_and_timeout(monkeypatch):

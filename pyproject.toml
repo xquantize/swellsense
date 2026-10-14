@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-swellsense = "swellsense:main"
+swellsense = "swellsense.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.11.30,<0.12.0"]

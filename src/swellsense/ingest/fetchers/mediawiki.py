@@ -1,6 +1,7 @@
 """Download one MediaWiki article into a raw document.
 
-File saving and the ingest command come later. This module only fetches.
+This module only fetches. The ingest command saves the document and pauses
+between requests.
 """
 
 from datetime import UTC, datetime
