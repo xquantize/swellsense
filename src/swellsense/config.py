@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr = SecretStr("ollama")
     llm_model: str = "qwen3:8b"
     llm_reasoning_effort: str | None = None
+    http_user_agent: str = (
+        "SwellSense/0.1 (learning project; contact: set HTTP_USER_AGENT)"
+    )
+    http_timeout_s: float = 30
 
 
 @lru_cache
