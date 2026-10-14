@@ -81,6 +81,7 @@ Work on the current roadmap stage unless asked otherwise. Don't build ahead.
 
 ## Coding rules
 - Edited Python files are auto-formatted by a hook.
+- A beforeReadFile hook blocks reads of `.env` files (except `.env.example`) and anything under `data/raw/`, including case variants and symlinks that resolve there.
 - Tests must never call the network or the LLM. Mock them.
 - Keep changes small, one concern per pull request.
 - Update the README and this file's roadmap when things change.
