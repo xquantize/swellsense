@@ -79,6 +79,7 @@ src/swellsense/
   spots/        spot profiles
   tides/        LINZ tide predictions and tide state
   forecast/     Open-Meteo swell and wind for one spot
+  conditions/   wind, swell and tide judgements for one spot
   chatbot.py    terminal chat
   cli.py        the swellsense command
 data/sources.yaml   all data sources
@@ -92,7 +93,7 @@ scripts/check.sh    the single check command
 - [x] Knowledge ingestion: source registry, fetching, raw storage
 - [ ] Processing: cleaning, chunking, embeddings, Postgres with pgvector
 - [ ] Grounded chat: retrieval with citations
-- [ ] Live conditions: Open-Meteo forecast and LINZ tides are in; the conditions check is still to come
+- [ ] Live conditions: Open-Meteo forecast, LINZ tides, and wind, swell and tide classifiers are in; the combined conditions check is still to come
 - [ ] Spots and maps: spot profiles and "where to surf" recommendations
 - [ ] Board advice grounded in sources
 - [ ] Session logbook and personalisation
