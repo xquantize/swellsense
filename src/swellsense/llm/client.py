@@ -50,6 +50,11 @@ def chat(prompt: str, system: str | None = None) -> str:
     return _complete(messages)
 
 
+def respond(messages: list[dict]) -> str:
+    """Continue a conversation, given the full message history."""
+    return _complete(messages)
+
+
 def extract[T: BaseModel](
     text: str, schema: type[T], instructions: str, max_attempts: int = 3
 ) -> T:
@@ -67,7 +72,9 @@ def extract[T: BaseModel](
         try:
             return schema.model_validate_json(content)
         except ValidationError as err:
-            log.warning("Attempt %d/%d failed validation: %s", attempt, max_attempts, err)
+            log.warning(
+                "Attempt %d/%d failed validation: %s", attempt, max_attempts, err
+            )
             messages += [
                 {"role": "assistant", "content": content},
                 {
