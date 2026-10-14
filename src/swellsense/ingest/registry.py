@@ -4,13 +4,15 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, Field
 
+Usage = Literal["open", "permission", "private"]
+
 
 class Source(BaseModel):
     id: str
     type: Literal["mediawiki", "web"]
     license: str
     attribution: str
-    usage: Literal["open", "permission", "private"]
+    usage: Usage
     api_url: str | None = None
     titles: list[str] = Field(default_factory=list)
     urls: list[str] = Field(default_factory=list)
