@@ -55,7 +55,7 @@ code, with short docstrings explaining why.
 ## Layout
 - `src/swellsense/llm/`: the only code that talks to the LLM API
 - `src/swellsense/extraction/`: structured extraction (boards, unit parsing)
-- `src/swellsense/ingest/`: source registry and downloading
+- `src/swellsense/ingest/`: source registry, raw document storage, and downloading
 - `data/sources.yaml`: all data sources
 - `tests/`: unit tests
 
