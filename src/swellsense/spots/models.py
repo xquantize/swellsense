@@ -4,9 +4,9 @@ Live swell, wind and tide are fetched later. Directions are stored as degrees
 true so offshore, onshore and swell fit can be calculated rather than guessed.
 """
 
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 BreakType = Literal["beach", "point", "reef", "bar"]
 Bottom = Literal["sand", "reef", "rock", "mixed"]
@@ -39,6 +39,11 @@ class Spot(BaseModel):
 
     ``facing_deg`` is the direction the beach faces out to sea. An offshore
     wind blows from ``facing_deg + 180`` (mod 360).
+
+    ``forecast_lat`` and ``forecast_lon`` are the point sent to the marine
+    grid. They default to the beach coordinates. A beach point that sits on
+    a land cell returns null waves, so those two fields move the request
+    slightly offshore.
     """
 
     id: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -46,6 +51,8 @@ class Spot(BaseModel):
     region: str = Field(min_length=1)
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
+    forecast_lat: float | None = Field(default=None, ge=-90, le=90)
+    forecast_lon: float | None = Field(default=None, ge=-180, le=180)
     facing_deg: int = Field(ge=0, le=359)
     break_type: BreakType
     bottom: Bottom
@@ -60,3 +67,16 @@ class Spot(BaseModel):
     notes: str
     sources: list[SpotSource] = Field(min_length=1)
     verified: bool = False
+
+    @model_validator(mode="after")
+    def _forecast_point_is_a_pair(self) -> Self:
+        # One coordinate and not the other would be an incomplete sea point.
+        if (self.forecast_lat is None) != (self.forecast_lon is None):
+            raise ValueError("forecast_lat and forecast_lon must both be set")
+        return self
+
+    def forecast_point(self) -> tuple[float, float]:
+        """Latitude and longitude to request, offshore when the beach is land."""
+        if self.forecast_lat is None or self.forecast_lon is None:
+            return (self.lat, self.lon)
+        return (self.forecast_lat, self.forecast_lon)

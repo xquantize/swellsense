@@ -2,6 +2,7 @@
 
 ``ingest`` downloads sources and prints one count line per source.
 ``tides`` prints Tauranga high and low waters for one day.
+``forecast`` prints hourly swell and wind for one spot.
 """
 
 import argparse
@@ -10,9 +11,13 @@ from datetime import date, datetime
 
 import httpx
 
+from swellsense.forecast.models import SpotForecast
+from swellsense.forecast.openmeteo import fetch_forecast
 from swellsense.ingest.fetchers.mediawiki import make_client
 from swellsense.ingest.registry import load_sources
 from swellsense.ingest.run import SourceReport, ingest
+from swellsense.spots.models import Spot
+from swellsense.spots.registry import get_spot, load_spots
 from swellsense.tides.linz import (
     AUCKLAND,
     LINZ_ATTRIBUTION,
@@ -48,11 +53,24 @@ def _main(argv: list[str] | None = None) -> int:
         help="Day to print (default: today in New Zealand)",
     )
 
+    forecast_parser = subparsers.add_parser(
+        "forecast", help="Print hourly swell and wind for one spot"
+    )
+    forecast_parser.add_argument("spot_id", metavar="SPOT")
+    forecast_parser.add_argument(
+        "--hours",
+        type=_hours_arg,
+        default=12,
+        help="How many hours to fetch (default: 12)",
+    )
+
     args = parser.parse_args(argv)
     if args.command == "ingest":
         return _ingest(args.source)
     if args.command == "tides":
         return _tides(args.date)
+    if args.command == "forecast":
+        return _forecast(args.spot_id, args.hours)
     return 2
 
 
@@ -82,6 +100,16 @@ def _date_arg(value: str) -> date:
         raise argparse.ArgumentTypeError("date must be YYYY-MM-DD") from exc
 
 
+def _hours_arg(value: str) -> int:
+    try:
+        hours = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("hours must be a positive integer") from exc
+    if hours < 1:
+        raise argparse.ArgumentTypeError("hours must be a positive integer")
+    return hours
+
+
 def _today_nz() -> date:
     return datetime.now(AUCKLAND).date()
 
@@ -107,6 +135,63 @@ def _tides(day: date | None) -> int:
 
     _print_tides(day, day_events)
     return 0
+
+
+def _forecast(spot_id: str, hours: int) -> int:
+    """Print swell, wind waves and wind, then Open-Meteo's credit."""
+    try:
+        spot = get_spot(load_spots(), spot_id)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    try:
+        with make_client() as client:
+            forecast = fetch_forecast(client, spot, hours)
+    except httpx.HTTPError as exc:
+        print(f"could not download the forecast for {spot_id}: {exc}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    _print_forecast(spot, forecast)
+    return 0
+
+
+def _print_forecast(spot: Spot, forecast: SpotForecast) -> None:
+    # Times are already Pacific/Auckland. The columns are the ones a surfer
+    # scans: groundswell, the local wind chop, then the wind itself.
+    print(f"{spot.name} ({spot.id}) (Pacific/Auckland)")
+    print(
+        f"{'time':<16}  {'swell':>8}  {'period':>8}  {'dir':>5}  "
+        f"{'wind wave':>9}  {'wind':>8}  {'gust':>8}  {'dir':>5}"
+    )
+    for hour in forecast.hours:
+        clock = hour.time.strftime("%Y-%m-%d %H:%M")
+        print(
+            f"{clock:<16}  "
+            f"{_measure(hour.swell_height_m, 'm'):>8}  "
+            f"{_measure(hour.swell_period_s, 's'):>8}  "
+            f"{_degrees(hour.swell_direction_deg):>5}  "
+            f"{_measure(hour.wind_wave_height_m, 'm'):>9}  "
+            f"{_measure(hour.wind_speed_kn, 'kn'):>8}  "
+            f"{_measure(hour.wind_gust_kn, 'kn'):>8}  "
+            f"{_degrees(hour.wind_direction_deg):>5}"
+        )
+    print(forecast.attribution)
+
+
+def _measure(value: float | None, unit: str) -> str:
+    if value is None:
+        return "-"
+    return f"{value:.1f} {unit}"
+
+
+def _degrees(value: float | None) -> str:
+    if value is None:
+        return "-"
+    return f"{value:.0f}°"
 
 
 def _print_tides(day: date, events: list[TideEvent]) -> None:
