@@ -1,6 +1,7 @@
 from swellsense.llm import extract
-from swellsense.schemas import BoardListing, BoardSpec
-from swellsense.units import parse_dimension
+
+from .schemas import BoardListing, BoardSpec
+from .units import parse_dimension
 
 INSTRUCTIONS = (
     "Extract surfboard specs from the listing. "

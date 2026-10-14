@@ -1,7 +1,9 @@
 import re
 from fractions import Fraction
 
-_FEET = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(?:'|’|′|ft|feet|foot)\s*(.*)$", re.IGNORECASE)
+_FEET = re.compile(
+    r"^\s*(\d+(?:\.\d+)?)\s*(?:'|’|′|ft|feet|foot)\s*(.*)$", re.IGNORECASE
+)
 _INCH_MARKS = re.compile(r'inches|inch|in\b|"|”|″', re.IGNORECASE)
 
 
