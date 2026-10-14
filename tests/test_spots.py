@@ -55,6 +55,7 @@ def test_real_spots_yaml_loads():
     mount = get_spot(spots, "mount-main-beach")
     assert mount.lat == pytest.approx(-37.632)
     assert mount.lon == pytest.approx(176.180)
+    assert mount.forecast_point() == (mount.lat, mount.lon)
     assert mount.break_type == "beach"
     assert mount.bottom == "sand"
     assert mount.swell_window.start_deg == 0
@@ -126,6 +127,20 @@ def test_swell_window_may_cross_north():
 
     at_top = Spot.model_validate(_base(facing_deg=359))
     assert at_top.facing_deg == 359
+
+
+def test_forecast_point_defaults_to_the_beach_and_can_move_offshore():
+    beach = Spot.model_validate(_base())
+    assert beach.forecast_lat is None
+    assert beach.forecast_point() == (-37.6, 176.2)
+
+    offshore = Spot.model_validate(_base(forecast_lat=-37.58, forecast_lon=176.22))
+    assert offshore.forecast_point() == (-37.58, 176.22)
+
+
+def test_forecast_coordinates_must_be_set_together():
+    with pytest.raises(ValidationError, match="forecast_lat and forecast_lon"):
+        Spot.model_validate(_base(forecast_lat=-37.58))
 
 
 def test_unknown_spot_id_is_a_clear_error():

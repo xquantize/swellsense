@@ -50,7 +50,7 @@ code, with short docstrings explaining why.
   - `private`: local development only. Must never appear in anything public, and is never committed.
 - Every stored document keeps its source URL, license and attribution, so answers can cite it.
 - When fetching: respect robots.txt and site terms, send the project User-Agent, and rate limit.
-- Never commit `.env`, anything in `data/raw/`, or downloaded tide files in `data/cache/`.
+- Never commit `.env`, anything in `data/raw/`, or downloaded tide and forecast files in `data/cache/`.
 
 ## Layout
 - `src/swellsense/llm/`: the only code that talks to the LLM API
@@ -58,6 +58,7 @@ code, with short docstrings explaining why.
 - `src/swellsense/ingest/`: source registry, fetchers, raw document storage, ingest runs
 - `src/swellsense/spots/`: spot profiles and the registry that loads them
 - `src/swellsense/tides/`: LINZ Tauranga predictions and tide state at a time
+- `src/swellsense/forecast/`: Open-Meteo swell and wind for one spot
 - `src/swellsense/chatbot.py`: terminal chat
 - `src/swellsense/cli.py`: the `swellsense` command
 - `data/sources.yaml`: all data sources
@@ -72,6 +73,7 @@ code, with short docstrings explaining why.
 - Apply lint and format fixes: `uv run ruff check --fix && uv run ruff format`
 - Download sources: `uv run swellsense ingest` (or `--source ID` for one)
 - Tauranga tides: `uv run swellsense tides` (or `--date YYYY-MM-DD`)
+- Spot forecast: `uv run swellsense forecast SPOT` (or `--hours N`, default 12)
 - Chat: `uv run python -m swellsense.chatbot`
 
 ## Roadmap
@@ -79,7 +81,7 @@ code, with short docstrings explaining why.
 2. [x] Knowledge ingestion: source registry, fetching, raw storage
 3. [ ] Processing: cleaning, chunking, local embeddings, Postgres + pgvector (in progress)
 4. [ ] Grounded chat: retrieval with citations
-5. [ ] Live conditions: forecast, wind and tide tools
+5. [ ] Live conditions: Open-Meteo forecast and LINZ tides are in; the conditions check is still to come
 6. [ ] Spots and maps: spot data and profiles, "where to surf" recommendations
 7. [ ] Board advice grounded in sources
 8. [ ] Session logbook and personalisation
@@ -109,5 +111,5 @@ Work on the current roadmap stage unless asked otherwise. Don't build ahead.
 ## Cursor Cloud specific instructions
 - Use `uv` for Python 3.13 (`.python-version`). The image's system Python may be older; `uv sync --locked` installs the pinned interpreter.
 - Checks: `bash scripts/check.sh`. Tests must not call the network or the LLM.
-- There is no dev server. `uv run swellsense ingest` downloads every source into `data/raw/` and writes `data/raw/_last_run.json`. `uv run swellsense ingest --source ID` downloads one source. `uv run swellsense tides` prints Tauranga high and low waters for today and caches the LINZ CSV under `data/cache/`. Loading `data/sources.yaml` with `swellsense.ingest.registry.load_sources` and parsing board dimensions with `swellsense.extraction.units.parse_dimension` exercises the current product path.
+- There is no dev server. `uv run swellsense ingest` downloads every source into `data/raw/` and writes `data/raw/_last_run.json`. `uv run swellsense ingest --source ID` downloads one source. `uv run swellsense tides` prints Tauranga high and low waters for today and caches the LINZ CSV under `data/cache/`. `uv run swellsense forecast SPOT` prints an Open-Meteo swell and wind table and caches it under `data/cache/forecast/` for one hour. Loading `data/sources.yaml` with `swellsense.ingest.registry.load_sources` and parsing board dimensions with `swellsense.extraction.units.parse_dimension` exercises the current product path.
 - `uv run python -m swellsense.chatbot` expects a local OpenAI-compatible server (default `http://localhost:11434/v1`, see `.env.example`). The environment does not start that server.

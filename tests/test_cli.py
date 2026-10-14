@@ -6,7 +6,10 @@ import httpx
 import pytest
 
 from swellsense.cli import main
+from swellsense.forecast.models import AUCKLAND, HourlyConditions, SpotForecast
+from swellsense.forecast.openmeteo import OPEN_METEO_ATTRIBUTION
 from swellsense.ingest.run import RunReport, SourceReport
+from swellsense.spots.models import Spot
 from swellsense.tides.linz import LINZ_ATTRIBUTION
 
 FIXTURE = Path(__file__).parent / "fixtures" / "tauranga_tides.csv"
@@ -106,6 +109,143 @@ def test_tides_rejects_a_bad_date():
         main(["tides", "--date", "15/01/2026"])
 
     assert caught.value.code == 2
+
+
+def _spot() -> Spot:
+    return Spot.model_validate(
+        {
+            "id": "example",
+            "name": "Example Beach",
+            "region": "Bay of Plenty",
+            "lat": -37.6,
+            "lon": 176.2,
+            "facing_deg": 45,
+            "break_type": "beach",
+            "bottom": "sand",
+            "swell_window": {"start_deg": 0, "end_deg": 90},
+            "best_tides": ["low"],
+            "tide_rising_better": None,
+            "tide_confidence": "unknown",
+            "tide_notes": "No settled tide call.",
+            "min_skill": "beginner",
+            "hazards": [],
+            "access": "road",
+            "notes": "A test spot.",
+            "sources": [{"name": "Example", "url": "https://example.com/spot"}],
+            "verified": False,
+        }
+    )
+
+
+def _forecast() -> SpotForecast:
+    return SpotForecast(
+        spot_id="example",
+        fetched_at=datetime(2026, 1, 15, 0, 0, tzinfo=UTC),
+        attribution=OPEN_METEO_ATTRIBUTION,
+        hours=[
+            HourlyConditions(
+                time=datetime(2026, 1, 15, 13, 0, tzinfo=AUCKLAND),
+                swell_height_m=1.2,
+                swell_period_s=12.5,
+                swell_direction_deg=40,
+                wind_wave_height_m=0.4,
+                wind_speed_kn=8,
+                wind_gust_kn=12,
+                wind_direction_deg=220,
+            ),
+            HourlyConditions(
+                time=datetime(2026, 1, 15, 14, 0, tzinfo=AUCKLAND),
+                swell_height_m=None,
+                swell_period_s=None,
+                swell_direction_deg=None,
+                wind_wave_height_m=None,
+                wind_speed_kn=5,
+                wind_gust_kn=None,
+                wind_direction_deg=180,
+            ),
+        ],
+    )
+
+
+def test_forecast_prints_the_table_and_the_attribution(capsys, monkeypatch):
+    seen: dict[str, int] = {}
+
+    def fake_fetch(client, spot, hours=48):
+        seen["hours"] = hours
+        assert spot.id == "example"
+        return _forecast()
+
+    monkeypatch.setattr("swellsense.cli.load_spots", lambda: [_spot()])
+    monkeypatch.setattr("swellsense.cli.make_client", lambda: nullcontext(object()))
+    monkeypatch.setattr("swellsense.cli.fetch_forecast", fake_fetch)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["forecast", "example", "--hours", "6"])
+
+    assert caught.value.code == 0
+    assert seen["hours"] == 6
+    assert capsys.readouterr().out == (
+        "Example Beach (example) (Pacific/Auckland)\n"
+        "time                 swell    period    dir  wind wave      wind      gust    dir\n"
+        "2026-01-15 13:00     1.2 m    12.5 s    40°      0.4 m    8.0 kn   12.0 kn   220°\n"
+        "2026-01-15 14:00         -         -      -          -    5.0 kn         -   180°\n"
+        f"{OPEN_METEO_ATTRIBUTION}\n"
+    )
+
+
+def test_forecast_defaults_to_12_hours(capsys, monkeypatch):
+    seen: dict[str, int] = {}
+
+    def fake_fetch(client, spot, hours=48):
+        seen["hours"] = hours
+        return _forecast()
+
+    monkeypatch.setattr("swellsense.cli.load_spots", lambda: [_spot()])
+    monkeypatch.setattr("swellsense.cli.make_client", lambda: nullcontext(object()))
+    monkeypatch.setattr("swellsense.cli.fetch_forecast", fake_fetch)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["forecast", "example"])
+
+    assert caught.value.code == 0
+    assert seen["hours"] == 12
+    assert "Example Beach" in capsys.readouterr().out
+
+
+def test_forecast_unknown_spot_exits_2(capsys, monkeypatch):
+    def fail(*args, **kwargs):
+        raise AssertionError("an unknown spot must not be downloaded")
+
+    monkeypatch.setattr("swellsense.cli.load_spots", lambda: [_spot()])
+    monkeypatch.setattr("swellsense.cli.make_client", fail)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["forecast", "not-a-spot"])
+
+    assert caught.value.code == 2
+    assert "not-a-spot" in capsys.readouterr().err
+
+
+def test_forecast_rejects_zero_hours():
+    with pytest.raises(SystemExit) as caught:
+        main(["forecast", "example", "--hours", "0"])
+
+    assert caught.value.code == 2
+
+
+def test_forecast_download_failure_exits_1(capsys, monkeypatch):
+    def fail(client, spot, hours=48):
+        raise httpx.ConnectError("offline")
+
+    monkeypatch.setattr("swellsense.cli.load_spots", lambda: [_spot()])
+    monkeypatch.setattr("swellsense.cli.make_client", lambda: nullcontext(object()))
+    monkeypatch.setattr("swellsense.cli.fetch_forecast", fail)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["forecast", "example"])
+
+    assert caught.value.code == 1
+    assert "could not download" in capsys.readouterr().err
 
 
 def test_tides_download_failure_exits_1(capsys, monkeypatch):

@@ -1,5 +1,7 @@
 # Baseline Bay of Plenty profiles. Coordinates are approximate.
 # facing_deg is 45 (north-east): a south-west wind is offshore along this coast.
+# forecast_lat / forecast_lon: optional offshore point when the beach coordinate
+# falls on a land cell in the marine grid. Omit them to use lat / lon.
 # verified stays false until a local has checked the spot.
 # Notes are paraphrased from the listed pages. Do not paste their text.
 

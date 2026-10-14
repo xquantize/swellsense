@@ -11,6 +11,7 @@ Early development. What works today:
 - **Terminal chat** with a local model through Ollama. Not yet grounded in sources, so treat its answers with caution.
 - **Knowledge ingestion**: downloads surf knowledge from Wikipedia into local storage, keeping the source URL, license and attribution on every document.
 - **Tauranga tides**: prints LINZ high and low waters for a day, with the required acknowledgement.
+- **Spot forecast**: hourly swell, wind waves and wind for a Bay of Plenty spot, from Open-Meteo.
 
 Next up: a database with retrieval, so answers come from real sources with citations. See the [Roadmap](#roadmap).
 
@@ -54,6 +55,8 @@ In `.env`, set `HTTP_USER_AGENT` to identify the project to source sites, for ex
 | `uv run swellsense ingest --source wikipedia` | Download a single source |
 | `uv run swellsense tides` | Print today's Tauranga highs and lows |
 | `uv run swellsense tides --date 2026-01-15` | Print one day's Tauranga tides |
+| `uv run swellsense forecast mount-main-beach` | Print 12 hours of swell and wind for a spot |
+| `uv run swellsense forecast mount-main-beach --hours 48` | Print a longer forecast |
 | `bash scripts/check.sh` | Lint, format check and tests |
 
 ## Data and licensing
@@ -64,7 +67,7 @@ Every source in [`data/sources.yaml`](data/sources.yaml) has a license, an attri
 - `permission`: the owner has agreed, usable anywhere with attribution
 - `private`: for local development only, never used in anything public
 
-Downloaded documents in `data/raw/` are never committed. Tide CSVs downloaded by `swellsense tides` live in `data/cache/` and are not committed. Current knowledge source: Wikipedia (CC BY-SA 4.0). Tide predictions are LINZ data and the command prints their required acknowledgement.
+Downloaded documents in `data/raw/` are never committed. Tide CSVs downloaded by `swellsense tides`, and forecasts downloaded by `swellsense forecast`, live in `data/cache/` and are not committed. Current knowledge source: Wikipedia (CC BY-SA 4.0). Tide predictions are LINZ data and the command prints their required acknowledgement. Wave and wind forecasts are Open-Meteo data (CC BY 4.0). The free API is for non-commercial use, and the command prints the required credit.
 
 ## Project structure
 
@@ -75,6 +78,7 @@ src/swellsense/
   ingest/       source registry, fetchers, storage, ingest runs
   spots/        spot profiles
   tides/        LINZ tide predictions and tide state
+  forecast/     Open-Meteo swell and wind for one spot
   chatbot.py    terminal chat
   cli.py        the swellsense command
 data/sources.yaml   all data sources
@@ -88,7 +92,7 @@ scripts/check.sh    the single check command
 - [x] Knowledge ingestion: source registry, fetching, raw storage
 - [ ] Processing: cleaning, chunking, embeddings, Postgres with pgvector
 - [ ] Grounded chat: retrieval with citations
-- [ ] Live conditions: forecast, wind and tide tools
+- [ ] Live conditions: Open-Meteo forecast and LINZ tides are in; the conditions check is still to come
 - [ ] Spots and maps: spot profiles and "where to surf" recommendations
 - [ ] Board advice grounded in sources
 - [ ] Session logbook and personalisation
