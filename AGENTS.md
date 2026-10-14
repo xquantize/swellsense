@@ -55,20 +55,25 @@ code, with short docstrings explaining why.
 ## Layout
 - `src/swellsense/llm/`: the only code that talks to the LLM API
 - `src/swellsense/extraction/`: structured extraction (boards, unit parsing)
-- `src/swellsense/ingest/`: source registry, raw document storage, and downloading
+- `src/swellsense/ingest/`: source registry, fetchers, raw document storage, ingest runs
+- `src/swellsense/chatbot.py`: terminal chat
+- `src/swellsense/cli.py`: the `swellsense` command
 - `data/sources.yaml`: all data sources
+- `.cursor/hooks/`: agent hooks (auto-format, file protection)
+- `scripts/check.sh`: the single check command
 - `tests/`: unit tests
 
 ## Commands
 - Install: `uv sync`
 - Verify changes: `bash scripts/check.sh` (lint, format check, then tests; stops at the first failure)
 - Apply lint and format fixes: `uv run ruff check --fix && uv run ruff format`
+- Download sources: `uv run swellsense ingest` (or `--source ID` for one)
 - Chat: `uv run python -m swellsense.chatbot`
 
 ## Roadmap
 1. [x] Foundations: provider-agnostic LLM client, structured extraction
-2. [ ] Knowledge ingestion: source registry, fetching, quality inspection (in progress)
-3. [ ] Processing: cleaning, chunking, local embeddings, Postgres + pgvector
+2. [x] Knowledge ingestion: source registry, fetching, raw storage
+3. [ ] Processing: cleaning, chunking, local embeddings, Postgres + pgvector (in progress)
 4. [ ] Grounded chat: retrieval with citations
 5. [ ] Live conditions: forecast, wind and tide tools
 6. [ ] Spots and maps: spot data and profiles, "where to surf" recommendations
