@@ -1,13 +1,13 @@
 """Block reads of secrets and bulk raw downloads.
 
-Runs from the beforeReadFile hook. Cursor sends an absolute path, so the
-check looks at the file name and path components, not a fixed prefix. `.` and
-`..` are collapsed in the path string only: the hook never touches the
-filesystem. When the payload is unclear, deny.
+Runs from the beforeReadFile hook. The path is resolved with
+os.path.realpath before the check, so a symlink cannot hide a file inside
+data/raw/ or a secret env file. Matching is case-insensitive because macOS
+treats .ENV and .env as the same file. When the payload is unclear, deny.
 """
 
 import json
-import posixpath
+import os
 import sys
 from typing import TextIO
 
@@ -33,26 +33,33 @@ def read_file_path(raw: str) -> str | None:
     return path
 
 
-def _normalized(path: str) -> str:
-    """Collapse . and .. and accept Windows separators, without reading the disk."""
-    return posixpath.normpath(path.replace("\\", "/"))
+def _resolved(path: str) -> str:
+    """Follow symlinks so the check sees the real file, not the link path.
+
+    Backslashes are folded first so a Windows path still splits into
+    components on POSIX. realpath also collapses "." and "..".
+    """
+    return os.path.realpath(path.replace("\\", "/"))
 
 
 def _is_secret_env(path: str) -> bool:
-    """True for .env and .env.* files, with .env.example left readable."""
-    name = posixpath.basename(_normalized(path))
+    """True for .env and .env.* files, with .env.example left readable.
+
+    The name is case-folded so .ENV is the same file as .env on macOS.
+    """
+    name = os.path.basename(_resolved(path)).casefold()
     if name == ".env":
         return True
     return name.startswith(".env.") and name != ".env.example"
 
 
 def _is_under_data_raw(path: str) -> bool:
-    """True when a data/raw directory contains this path.
+    """True when the resolved path sits inside a data/raw directory.
 
-    Matching components (not a substring) keeps data/rawfile readable, and
-    still matches absolute paths such as /workspace/data/raw/page.json.
+    Components are compared, not a substring, so data/rawfile stays readable.
+    Case-folding keeps Data/Raw blocked on a case-insensitive disk.
     """
-    parts = _normalized(path).split("/")
+    parts = _resolved(path).casefold().split(os.sep)
     return any(
         parts[index] == "data" and parts[index + 1] == "raw"
         for index in range(len(parts) - 1)

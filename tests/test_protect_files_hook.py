@@ -1,4 +1,4 @@
-"""Tests for the beforeReadFile protection hook. No network and no filesystem."""
+"""Tests for the beforeReadFile protection hook. No network."""
 
 import importlib.util
 import json
@@ -49,6 +49,29 @@ def test_env_files_are_denied(path: str, capsys: pytest.CaptureFixture[str]) -> 
     assert body == {"permission": "deny", "user_message": hook.ENV_DENY_MESSAGE}
 
 
+@pytest.mark.parametrize(
+    "path",
+    [".ENV", ".Env.local", "/workspace/app/.ENV.production"],
+)
+def test_env_match_is_case_insensitive(
+    path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, body = _run(json.dumps({"file_path": path}), capsys)
+
+    assert code == 0
+    assert body == {"permission": "deny", "user_message": hook.ENV_DENY_MESSAGE}
+
+
+@pytest.mark.parametrize("path", [".ENV.example", "/workspace/.Env.Example"])
+def test_env_example_match_is_case_insensitive(
+    path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, body = _run(json.dumps({"file_path": path}), capsys)
+
+    assert code == 0
+    assert body == {"permission": "allow"}
+
+
 def test_env_example_is_allowed(capsys: pytest.CaptureFixture[str]) -> None:
     payload = json.dumps({"file_path": ".env.example", "content": "KEY="})
     code, body = _run(payload, capsys)
@@ -63,6 +86,19 @@ def test_absolute_env_example_is_allowed(capsys: pytest.CaptureFixture[str]) -> 
 
     assert code == 0
     assert body == {"permission": "allow"}
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["DATA/RAW/wikipedia/x.json", "Data/Raw/page.json"],
+)
+def test_data_raw_match_is_case_insensitive(
+    path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, body = _run(json.dumps({"file_path": path}), capsys)
+
+    assert code == 0
+    assert body == {"permission": "deny", "user_message": hook.RAW_DENY_MESSAGE}
 
 
 def test_data_raw_is_denied(capsys: pytest.CaptureFixture[str]) -> None:
@@ -103,6 +139,38 @@ def test_ordinary_files_are_allowed(
     path: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     code, body = _run(json.dumps({"file_path": path}), capsys)
+
+    assert code == 0
+    assert body == {"permission": "allow"}
+
+
+def test_symlink_into_data_raw_is_denied(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target_dir = tmp_path / "data" / "raw" / "wikipedia"
+    target_dir.mkdir(parents=True)
+    target = target_dir / "x.json"
+    target.write_text("{}", encoding="utf-8")
+    link = tmp_path / "notes.json"
+    link.symlink_to(target)
+
+    code, body = _run(json.dumps({"file_path": str(link)}), capsys)
+
+    assert code == 0
+    assert body == {"permission": "deny", "user_message": hook.RAW_DENY_MESSAGE}
+
+
+def test_symlink_out_of_data_raw_is_allowed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    outside = tmp_path / "sources.yaml"
+    outside.write_text("ok", encoding="utf-8")
+    raw = tmp_path / "data" / "raw"
+    raw.mkdir(parents=True)
+    link = raw / "sources.yaml"
+    link.symlink_to(outside)
+
+    code, body = _run(json.dumps({"file_path": str(link)}), capsys)
 
     assert code == 0
     assert body == {"permission": "allow"}
