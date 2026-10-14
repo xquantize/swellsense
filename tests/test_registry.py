@@ -1,7 +1,9 @@
+from typing import Literal
+
 import pytest
 from pydantic import ValidationError
 
-from swellsense.ingest.registry import load_sources
+from swellsense.ingest.registry import Source, load_sources, public_sources
 
 VALID = """
 - id: wikipedia
@@ -44,3 +46,37 @@ def test_rejects_duplicate_ids(tmp_path):
 
     with pytest.raises(ValueError, match="Duplicate source id: wikipedia"):
         load_sources(path)
+
+
+def _source(source_id: str, usage: Literal["open", "permission", "private"]) -> Source:
+    return Source(
+        id=source_id,
+        type="web",
+        license="CC BY 4.0",
+        attribution="Example",
+        usage=usage,
+        urls=["https://example.com"],
+    )
+
+
+def test_public_sources_keeps_open_and_permission():
+    sources = [
+        _source("wiki", "open"),
+        _source("notes", "private"),
+        _source("club", "permission"),
+    ]
+
+    public = public_sources(sources)
+
+    assert [source.id for source in public] == ["wiki", "club"]
+    assert all(source.usage in {"open", "permission"} for source in public)
+
+
+def test_public_sources_drops_every_private_source():
+    sources = [_source("draft", "private"), _source("scratch", "private")]
+
+    assert public_sources(sources) == []
+
+
+def test_public_sources_empty_list():
+    assert public_sources([]) == []

@@ -29,3 +29,12 @@ def load_sources(path: str | Path = "data/sources.yaml") -> list[Source]:
             raise ValueError(f"Duplicate source id: {source.id}")
         seen.add(source.id)
     return sources
+
+
+def public_sources(sources: list[Source]) -> list[Source]:
+    """Return sources that may appear in public output.
+
+    ``open`` and ``permission`` sources can be used anywhere, with attribution.
+    ``private`` sources are local development only and must never leave the machine.
+    """
+    return [source for source in sources if source.usage in {"open", "permission"}]
