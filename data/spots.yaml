@@ -1,0 +1,229 @@
+# Baseline Bay of Plenty profiles. Coordinates are approximate.
+# facing_deg is 45 (north-east): a south-west wind is offshore along this coast.
+# verified stays false until a local has checked the spot.
+# Notes are paraphrased from the listed pages. Do not paste their text.
+
+- id: mount-main-beach
+  name: Mount Main Beach
+  region: Bay of Plenty
+  lat: -37.632
+  lon: 176.180
+  facing_deg: 45
+  break_type: beach
+  bottom: sand
+  swell_window:
+    start_deg: 0
+    end_deg: 90
+  best_tides: [low, mid]
+  tide_rising_better: null
+  tide_confidence: conflicting
+  tide_notes: >-
+    Low and mid are the tides that come up most often. A tourism guide leans
+    mid to low, Surfline leans low to mid, and surf-forecast says the tide
+    does not change the wave.
+  min_skill: beginner
+  hazards: []
+  access: road
+  notes: >-
+    Peaky beach breaks, plus a right-hand point off Moturiki (the blowhole)
+    at the south end. Sheltered when the wind is south-east. The northern end
+    near Mauao is steeper and bigger, and a bigger swell can close the beach
+    out. Very crowded from December to February.
+  sources:
+    - name: Bay of Plenty NZ
+      url: https://bayofplentynz.com/experiences/oceans-and-beaches/the-bays-best-surf-spots/
+    - name: Surfline
+      url: https://www.surfline.com/surf-report/mt-maunganui-main-beach/5842041f4e65fad6a7708d84
+    - name: surf-forecast.com
+      url: https://www.surf-forecast.com/breaks/Mount-Maunguni
+    - name: Surf Atlas
+      url: https://thesurfatlas.com/surfing-new-zealand/mount-maunganui-surf/
+    - name: Surfnerd
+      url: https://www.surfnerd.com/surf-forecast/mount-maunganui-main-beach
+  verified: false
+
+- id: tay-street
+  name: Tay Street
+  region: Bay of Plenty
+  lat: -37.645
+  lon: 176.198
+  facing_deg: 45
+  break_type: beach
+  bottom: sand
+  swell_window:
+    start_deg: 0
+    end_deg: 100
+  best_tides: [high]
+  tide_rising_better: null
+  tide_confidence: conflicting
+  tide_notes: >-
+    Guides disagree. One says the bank works on every tide. A local surf
+    school says it is best around high, which is the tide recorded here.
+  min_skill: intermediate
+  hazards: []
+  access: road
+  notes: >-
+    Lefts and rights, with short rides. Flatter and more exposed than Main
+    Beach, and often bigger. Handles a north-west wind better than Main Beach.
+    This is the busiest bank.
+  sources:
+    - name: surf-forecast.com
+      url: https://www.surf-forecast.com/breaks/Taystreet
+    - name: Mount Surf School
+      url: https://mountsurfschool.co.nz/where-to-surf-in-mount-maunganui/
+    - name: Surfnerd
+      url: https://www.surfnerd.com/surf-forecast/tay-street
+    - name: Surf Seeker
+      url: https://surfseeker.nz/surf_breaks/bay-plenty/tay-street/
+    - name: Mondo Surf
+      url: https://www.mondo.surf/surf-spot/tay-street/guide/13200
+    - name: Surf Atlas
+      url: https://thesurfatlas.com/surfing-new-zealand/mount-maunganui-surf/
+  verified: false
+
+- id: omanu
+  name: Omanu
+  region: Bay of Plenty
+  lat: -37.656
+  lon: 176.220
+  facing_deg: 45
+  break_type: beach
+  bottom: sand
+  swell_window:
+    start_deg: 0
+    end_deg: 100
+  best_tides: []
+  tide_rising_better: null
+  tide_confidence: unknown
+  tide_notes: The sources used here do not settle which tide works best.
+  min_skill: intermediate
+  hazards: []
+  access: road
+  notes: >-
+    Punchier than Main Beach, with thinner crowds. Nearby Hart Street often
+    has the best banks and picks up the most swell.
+  sources:
+    - name: Mondo Surf
+      url: https://www.mondo.surf/surf-spot/omanu/guide/13194
+    - name: Mount Surf School
+      url: https://mountsurfschool.co.nz/surfing-in-mount-maunganui-heres-everything-you-need-to-know/
+    - name: Surfline
+      url: https://www.surfline.com/surf-report/mt-maunganui-coast/6168a7255e7b1b67b04bbf63
+  verified: false
+
+- id: papamoa
+  name: Papamoa Beach
+  region: Bay of Plenty
+  lat: -37.690
+  lon: 176.300
+  facing_deg: 45
+  break_type: beach
+  bottom: sand
+  swell_window:
+    start_deg: 20
+    end_deg: 110
+  best_tides: [low, mid, high]
+  tide_rising_better: null
+  tide_confidence: agreed
+  tide_notes: Guides used here agree it can work on a low, mid or high tide.
+  min_skill: beginner
+  hazards: []
+  access: road
+  notes: Exposed beach that only works occasionally. Usually uncrowded.
+  sources:
+    - name: surf-forecast.com
+      url: https://www.surf-forecast.com/breaks/Papamoa-1
+    - name: Surfline
+      url: https://www.surfline.com/surf-report/papamoa/6168a7a5cb771a17201e2362
+    - name: Bay of Plenty NZ
+      url: https://bayofplentynz.com/experiences/oceans-and-beaches/the-bays-best-surf-spots/
+    - name: Surf Atlas
+      url: https://thesurfatlas.com/surfing-new-zealand/mount-maunganui-surf/
+  verified: false
+
+- id: matakana-island
+  name: Matakana Island (ocean beach)
+  region: Bay of Plenty
+  lat: -37.560
+  lon: 176.070
+  facing_deg: 45
+  break_type: beach
+  bottom: sand
+  swell_window:
+    start_deg: 0
+    end_deg: 90
+  best_tides: [low]
+  tide_rising_better: true
+  tide_confidence: conflicting
+  tide_notes: >-
+    Guides disagree. One says every tide works. Another says low is better,
+    especially while the tide is rising, which is the tide recorded here.
+  min_skill: advanced
+  hazards:
+    - dangerous rips
+  access: boat
+  notes: Exposed ocean beach that mostly picks up groundswell.
+  sources:
+    - name: surf-forecast.com
+      url: https://www.surf-forecast.com/breaks/Matakana-Island
+    - name: Surfnerd
+      url: https://www.surfnerd.com/surf-forecast/matakana-island
+  verified: false
+
+- id: punis-farm
+  name: Puni's Farm
+  region: Bay of Plenty
+  lat: -37.580
+  lon: 176.130
+  facing_deg: 45
+  break_type: point
+  bottom: sand
+  swell_window:
+    start_deg: 45
+    end_deg: 135
+  best_tides: []
+  tide_rising_better: null
+  tide_confidence: unknown
+  tide_notes: The sources used here do not settle which tide works best.
+  min_skill: advanced
+  hazards: []
+  access: boat
+  notes: Fast, hollow waves when a north-east to south-east swell is running.
+  sources:
+    - name: Surf Atlas
+      url: https://thesurfatlas.com/surfing-new-zealand/mount-maunganui-surf/
+    - name: Surf Seeker
+      url: https://surfseeker.nz/surf_breaks/bay-plenty/punis-farm/
+  verified: false
+
+- id: waihi-beach
+  name: Waihi Beach
+  region: Bay of Plenty
+  lat: -37.410
+  lon: 175.940
+  facing_deg: 45
+  break_type: beach
+  bottom: sand
+  swell_window:
+    start_deg: 20
+    end_deg: 100
+  best_tides: [mid]
+  tide_rising_better: true
+  tide_confidence: agreed
+  tide_notes: >-
+    Guides used here agree mid tide is the one that works, and that a rising
+    tide is better than a falling one.
+  min_skill: intermediate
+  hazards: []
+  access: road
+  notes: Exposed beach that picks up groundswell. Few surfers.
+  sources:
+    - name: surf-forecast.com
+      url: https://www.surf-forecast.com/breaks/Waihi-Beach
+    - name: Surfline
+      url: https://www.surfline.com/surf-report/waihi-beach/6168a51dcb771a2e651e235c
+    - name: Surf Seeker
+      url: https://surfseeker.nz/surf_breaks/bay-plenty/waihi-beach/
+    - name: Bay of Plenty NZ
+      url: https://bayofplentynz.com/experiences/oceans-and-beaches/the-bays-best-surf-spots/
+  verified: false
