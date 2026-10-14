@@ -56,9 +56,11 @@ code, with short docstrings explaining why.
 - `src/swellsense/llm/`: the only code that talks to the LLM API
 - `src/swellsense/extraction/`: structured extraction (boards, unit parsing)
 - `src/swellsense/ingest/`: source registry, fetchers, raw document storage, ingest runs
+- `src/swellsense/spots/`: spot profiles and the registry that loads them
 - `src/swellsense/chatbot.py`: terminal chat
 - `src/swellsense/cli.py`: the `swellsense` command
 - `data/sources.yaml`: all data sources
+- `data/spots.yaml`: baseline spot profiles
 - `.cursor/hooks/`: agent hooks (auto-format, file protection)
 - `scripts/check.sh`: the single check command
 - `tests/`: unit tests
