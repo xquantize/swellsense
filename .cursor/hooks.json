@@ -6,6 +6,13 @@
         "command": "python3 .cursor/hooks/format_python.py",
         "timeout": 30
       }
+    ],
+    "beforeReadFile": [
+      {
+        "command": "python3 .cursor/hooks/protect_files.py",
+        "timeout": 10,
+        "failClosed": true
+      }
     ]
   }
 }
