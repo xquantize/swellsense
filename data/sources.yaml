@@ -1,0 +1,16 @@
+- id: wikipedia
+  type: mediawiki
+  api_url: https://en.wikipedia.org/w/api.php
+  license: CC BY-SA 4.0
+  attribution: Wikipedia contributors
+  usage: open
+  titles:
+    - Surfing
+    - Surfboard
+    - Surf break
+    - Swell (ocean)
+    - Wind wave
+    - Rip current
+    - Glossary of surfing
+    - Tide
+    - Surfing in New Zealand
