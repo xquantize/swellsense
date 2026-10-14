@@ -94,3 +94,9 @@ Work on the current roadmap stage unless asked otherwise. Don't build ahead.
 ## Definition of done
 - `ruff check` is clean and `pytest` passes
 - A short summary of what changed, plus anything you were unsure about
+
+## Cursor Cloud specific instructions
+- Use `uv` for Python 3.13 (`.python-version`). The image's system Python may be older; `uv sync --locked` installs the pinned interpreter.
+- Checks: `uv run ruff check .`, `uv run ruff format --check .`, and `uv run pytest`. Tests must not call the network or the LLM.
+- There is no dev server. `uv run swellsense` prints a hello line. Loading `data/sources.yaml` with `swellsense.ingest.registry.load_sources` and parsing board dimensions with `swellsense.extraction.units.parse_dimension` exercises the current product path.
+- `uv run python -m swellsense.chatbot` expects a local OpenAI-compatible server (default `http://localhost:11434/v1`, see `.env.example`). The environment does not start that server.
