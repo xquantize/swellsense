@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from swellsense!")
+"""SwellSense: a surf assistant for New Zealand surfers."""

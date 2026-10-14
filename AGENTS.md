@@ -100,5 +100,5 @@ Work on the current roadmap stage unless asked otherwise. Don't build ahead.
 ## Cursor Cloud specific instructions
 - Use `uv` for Python 3.13 (`.python-version`). The image's system Python may be older; `uv sync --locked` installs the pinned interpreter.
 - Checks: `bash scripts/check.sh`. Tests must not call the network or the LLM.
-- There is no dev server. `uv run swellsense` prints a hello line. Loading `data/sources.yaml` with `swellsense.ingest.registry.load_sources` and parsing board dimensions with `swellsense.extraction.units.parse_dimension` exercises the current product path.
+- There is no dev server. `uv run swellsense ingest` downloads every source into `data/raw/` and writes `data/raw/_last_run.json`. `uv run swellsense ingest --source ID` downloads one source. Loading `data/sources.yaml` with `swellsense.ingest.registry.load_sources` and parsing board dimensions with `swellsense.extraction.units.parse_dimension` exercises the current product path.
 - `uv run python -m swellsense.chatbot` expects a local OpenAI-compatible server (default `http://localhost:11434/v1`, see `.env.example`). The environment does not start that server.

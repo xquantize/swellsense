@@ -40,6 +40,24 @@ def test_rejects_invalid_usage(tmp_path):
         load_sources(path)
 
 
+def test_rejects_mediawiki_without_api_url(tmp_path):
+    path = tmp_path / "sources.yaml"
+    path.write_text(
+        VALID.replace("  api_url: https://en.wikipedia.org/w/api.php\n", "")
+    )
+
+    with pytest.raises(ValidationError, match="wikipedia requires api_url"):
+        load_sources(path)
+
+
+def test_rejects_blank_mediawiki_api_url(tmp_path):
+    path = tmp_path / "sources.yaml"
+    path.write_text(VALID.replace("https://en.wikipedia.org/w/api.php", '"   "'))
+
+    with pytest.raises(ValidationError, match="wikipedia requires api_url"):
+        load_sources(path)
+
+
 def test_rejects_duplicate_ids(tmp_path):
     path = tmp_path / "sources.yaml"
     path.write_text(VALID + VALID)
