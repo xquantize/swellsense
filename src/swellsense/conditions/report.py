@@ -12,17 +12,30 @@ from pydantic import BaseModel, Field, field_validator
 
 from swellsense.conditions.rating import HourRating, rate_hour
 from swellsense.forecast.models import AUCKLAND, HourlyConditions, SpotForecast
-from swellsense.spots.models import Spot
+from swellsense.spots.models import Skill, Spot
 from swellsense.tides.linz import LINZ_ATTRIBUTION
 from swellsense.tides.models import TideEvent, TideState
 from swellsense.tides.state import tide_at
 
+# Easier skills sort first inside a tie. A surfer can surf their own level.
+_SKILL_ORDER: dict[Skill, int] = {
+    "beginner": 0,
+    "intermediate": 1,
+    "advanced": 2,
+}
+
 
 class ConditionsReport(BaseModel):
-    """One spot over a half-open time range, ``start`` inclusive and ``end`` exclusive."""
+    """One spot over a half-open time range, ``start`` inclusive and ``end`` exclusive.
+
+    ``min_skill`` and ``access`` are copied from the profile. The ranking
+    uses them when two spots share a score.
+    """
 
     spot_id: str
     spot_name: str
+    min_skill: Skill
+    access: str
     start: datetime
     end: datetime
     hours: list[HourRating]
@@ -77,6 +90,8 @@ def build_report(
     return ConditionsReport(
         spot_id=spot.id,
         spot_name=spot.name,
+        min_skill=spot.min_skill,
+        access=spot.access,
         start=start,
         end=end,
         hours=ratings,
@@ -87,14 +102,58 @@ def build_report(
     )
 
 
-def rank_spots(reports: list[ConditionsReport]) -> list[ConditionsReport]:
-    """Order spots by their best hour, highest score first.
+class RankedSpot(BaseModel):
+    """One place in a ranking. Tied scores share ``rank``, written ``=1``."""
 
-    A report with no rated hour sorts last. Equal scores keep the earlier
-    best hour first, then the spot id, so the order does not depend on the
-    order of the input.
+    rank: str = Field(pattern=r"^=?[1-9]\d*$")
+    report: ConditionsReport
+
+
+class SpotRanking(BaseModel):
+    """Spots in rank order, plus any left out as above the surfer's level.
+
+    ``above_level`` is empty when no skill was given. Those spots stay in
+    the result so a caller can list them instead of dropping them.
     """
-    return sorted(reports, key=_rank_key)
+
+    ranked: list[RankedSpot]
+    above_level: list[ConditionsReport] = Field(default_factory=list)
+
+
+def rank_spots(
+    reports: list[ConditionsReport],
+    skill: Skill | None = None,
+) -> SpotRanking:
+    """Order spots by their best-hour score, and mark ties instead of hiding them.
+
+    The highest score comes first. Spots with the same score share a rank,
+    shown as ``=1``, ``=1``, ``3``. A report with no rated hour sorts last.
+    Two unrated reports share a rank.
+
+    Within a tie the order is practicality: spots without special access
+    come first (a boat is special access), then the easier ``min_skill``,
+    then the earlier best hour, then the name. When those all match, the
+    spot id keeps the order stable.
+
+    Pass ``skill`` to rank only spots at or below that level. Harder spots
+    are left out of the ranking and returned in ``above_level``, in this
+    same order. Omit ``skill`` to rank every report.
+    """
+    if skill is not None and skill not in _SKILL_ORDER:
+        raise ValueError("skill must be beginner, intermediate or advanced")
+
+    eligible: list[ConditionsReport] = []
+    above: list[ConditionsReport] = []
+    for report in reports:
+        if skill is not None and _SKILL_ORDER[report.min_skill] > _SKILL_ORDER[skill]:
+            above.append(report)
+        else:
+            eligible.append(report)
+
+    return SpotRanking(
+        ranked=_with_ranks(sorted(eligible, key=_rank_key)),
+        above_level=sorted(above, key=_rank_key),
+    )
 
 
 def _best_hour(hours: list[HourRating]) -> HourRating | None:
@@ -105,11 +164,60 @@ def _best_hour(hours: list[HourRating]) -> HourRating | None:
     return best
 
 
-def _rank_key(report: ConditionsReport) -> tuple[int, int, float, str]:
+def _with_ranks(reports: list[ConditionsReport]) -> list[RankedSpot]:
+    rows: list[RankedSpot] = []
+    index = 0
+    while index < len(reports):
+        score = _best_score(reports[index])
+        end = index + 1
+        while end < len(reports) and _best_score(reports[end]) == score:
+            end += 1
+        # Competition ranking: the next spot skips the places the tie used.
+        label = f"={index + 1}" if end - index > 1 else str(index + 1)
+        rows.extend(
+            RankedSpot(rank=label, report=report) for report in reports[index:end]
+        )
+        index = end
+    return rows
+
+
+def _best_score(report: ConditionsReport) -> int | None:
+    if report.best_hour is None:
+        return None
+    return report.best_hour.score
+
+
+def _rank_key(report: ConditionsReport) -> tuple[int, int, int, int, float, str, str]:
     best = report.best_hour
+    # Unrated reports share one group at the end. A missing hour is its own score.
     if best is None:
-        return (1, 0, 0.0, report.spot_id)
-    return (0, -best.score, best.time.timestamp(), report.spot_id)
+        return (
+            1,
+            0,
+            _needs_boat(report.access),
+            _SKILL_ORDER[report.min_skill],
+            0.0,
+            report.spot_name.casefold(),
+            report.spot_id,
+        )
+    return (
+        0,
+        -best.score,
+        _needs_boat(report.access),
+        _SKILL_ORDER[report.min_skill],
+        best.time.timestamp(),
+        report.spot_name.casefold(),
+        report.spot_id,
+    )
+
+
+def _needs_boat(access: str) -> int:
+    """Boat access sorts after a spot you can reach from the shore.
+
+    The profiles only call out a boat as special access. Road, beach and
+    anything else stay in the first group.
+    """
+    return int(access.casefold().strip() == "boat")
 
 
 def _tide_or_none(events: list[TideEvent], when: datetime) -> TideState | None:

@@ -6,7 +6,13 @@ model or the network.
 """
 
 from swellsense.conditions.rating import HourRating, rate_hour, score_label
-from swellsense.conditions.report import ConditionsReport, build_report, rank_spots
+from swellsense.conditions.report import (
+    ConditionsReport,
+    RankedSpot,
+    SpotRanking,
+    build_report,
+    rank_spots,
+)
 from swellsense.conditions.swell import SwellJudgement, classify_swell
 from swellsense.conditions.tide import TideJudgement, classify_tide
 from swellsense.conditions.wind import WindJudgement, classify_wind
@@ -14,6 +20,8 @@ from swellsense.conditions.wind import WindJudgement, classify_wind
 __all__ = [
     "ConditionsReport",
     "HourRating",
+    "RankedSpot",
+    "SpotRanking",
     "SwellJudgement",
     "TideJudgement",
     "WindJudgement",
