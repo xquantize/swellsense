@@ -458,8 +458,11 @@ def test_rank_spots_orders_by_best_hour_score():
         build_report(none, _forecast(none, []), [], early, later),
     ]
 
-    ranked = rank_spots(reports)
+    ranking = rank_spots(reports)
+    ranked = [row.report for row in ranking.ranked]
 
+    assert [row.rank for row in ranking.ranked] == ["=1", "=1", "3", "4"]
+    assert ranking.above_level == []
     assert [report.spot_id for report in ranked] == [
         "high-spot",
         "tied-later",
@@ -473,29 +476,207 @@ def test_rank_spots_orders_by_best_hour_score():
     assert ranked[-1].best_hour is None
 
 
-def test_equal_scores_at_the_same_time_break_by_spot_id():
-    mango = _spot(id="mango", name="Mango")
-    apple = _spot(id="apple", name="Apple")
+def test_equal_scores_share_a_rank():
+    early = WHEN
+    later = WHEN + timedelta(hours=2)
+    # Names and ids would put the later hour first. The shared rank stays.
+    later_hour = _spot(id="aaa", name="Aaa", access="road", min_skill="beginner")
+    earlier_hour = _spot(id="zzz", name="Zzz", access="road", min_skill="beginner")
+    lower = _spot(id="lower", name="Lower")
+    window_end = later + timedelta(hours=1)
     reports = [
         build_report(
-            mango,
-            _forecast(mango, [_hour(wind_speed=3)]),
+            lower,
+            _forecast(lower, [_hour(time=early, height=0.1)]),
+            [],
+            early,
+            window_end,
+        ),
+        build_report(
+            later_hour,
+            _forecast(later_hour, [_hour(time=later, wind_speed=3)]),
+            [],
+            early,
+            window_end,
+        ),
+        build_report(
+            earlier_hour,
+            _forecast(earlier_hour, [_hour(time=early, wind_speed=3)]),
+            [],
+            early,
+            window_end,
+        ),
+    ]
+
+    ranking = rank_spots(reports)
+
+    assert [row.rank for row in ranking.ranked] == ["=1", "=1", "3"]
+    assert [row.report.spot_id for row in ranking.ranked] == [
+        "zzz",
+        "aaa",
+        "lower",
+    ]
+    assert ranking.ranked[0].report.best_hour is not None
+    assert ranking.ranked[2].report.best_hour is not None
+    assert (
+        ranking.ranked[0].report.best_hour.score
+        == ranking.ranked[1].report.best_hour.score
+    )
+    assert (
+        ranking.ranked[2].report.best_hour.score
+        < ranking.ranked[0].report.best_hour.score
+    )
+
+
+def test_boat_access_sorts_after_beach_access_on_a_tie():
+    # Name and id favour the boat. Access has to win, or the tie is dishonest.
+    boat = _spot(id="aaa", name="Aaa", access="boat")
+    beach = _spot(id="zzz", name="Zzz", access="beach")
+    reports = [
+        _tied_report(boat),
+        _tied_report(beach),
+    ]
+
+    ranking = rank_spots(reports)
+
+    assert [row.report.spot_id for row in ranking.ranked] == ["zzz", "aaa"]
+    assert [row.rank for row in ranking.ranked] == ["=1", "=1"]
+
+
+def test_easier_spots_sort_first_within_a_tie():
+    advanced = _spot(id="aaa", name="Aaa", min_skill="advanced")
+    intermediate = _spot(id="mmm", name="Mmm", min_skill="intermediate")
+    beginner = _spot(id="zzz", name="Zzz", min_skill="beginner")
+    reports = [
+        _tied_report(advanced),
+        _tied_report(intermediate),
+        _tied_report(beginner),
+    ]
+
+    ranking = rank_spots(reports)
+
+    assert [row.report.min_skill for row in ranking.ranked] == [
+        "beginner",
+        "intermediate",
+        "advanced",
+    ]
+    assert [row.rank for row in ranking.ranked] == ["=1", "=1", "=1"]
+
+
+def test_tied_spots_then_sort_by_name_not_id():
+    mango = _spot(id="aaa", name="Mango")
+    apple = _spot(id="zzz", name="Apple")
+    reports = [_tied_report(mango), _tied_report(apple)]
+
+    ranking = rank_spots(reports)
+
+    assert [row.report.spot_id for row in ranking.ranked] == ["zzz", "aaa"]
+    assert [row.rank for row in ranking.ranked] == ["=1", "=1"]
+
+
+def test_ranking_with_no_ties_follows_the_score():
+    # Practicality would put the beach beginner first. The score must not move.
+    boat = _spot(id="boat", name="Aaa", access="boat", min_skill="advanced")
+    road = _spot(id="road", name="Mmm", access="road", min_skill="intermediate")
+    beach = _spot(id="beach", name="Zzz", access="beach", min_skill="beginner")
+    reports = [
+        build_report(
+            beach,
+            _forecast(beach, [_hour(height=0.1)]),
             [],
             WHEN,
             WHEN + timedelta(hours=1),
         ),
         build_report(
-            apple,
-            _forecast(apple, [_hour(wind_speed=3)]),
+            boat,
+            _forecast(boat, [_hour(wind_speed=3)]),
+            [],
+            WHEN,
+            WHEN + timedelta(hours=1),
+        ),
+        build_report(
+            road,
+            _forecast(road, [_hour(wind_direction=FACING, wind_speed=12)]),
             [],
             WHEN,
             WHEN + timedelta(hours=1),
         ),
     ]
 
-    ranked = rank_spots(reports)
+    ranking = rank_spots(reports)
 
-    assert [report.spot_id for report in ranked] == ["apple", "mango"]
+    assert [row.report.spot_id for row in ranking.ranked] == ["boat", "road", "beach"]
+    assert [row.rank for row in ranking.ranked] == ["1", "2", "3"]
+    scores = [row.report.best_hour.score for row in ranking.ranked]
+    assert scores == sorted(scores, reverse=True)
+    assert len(set(scores)) == 3
+    assert ranking.above_level == []
+
+
+def test_skill_excludes_harder_spots_and_lists_them():
+    beginner = _spot(id="beginner-spot", name="Beginner", min_skill="beginner")
+    intermediate = _spot(
+        id="intermediate-spot",
+        name="Intermediate",
+        min_skill="intermediate",
+        access="road",
+    )
+    advanced = _spot(
+        id="advanced-spot",
+        name="Aaa",
+        min_skill="advanced",
+        access="boat",
+    )
+    reports = [
+        build_report(
+            advanced,
+            _forecast(advanced, [_hour(wind_speed=3)]),
+            [],
+            WHEN,
+            WHEN + timedelta(hours=1),
+        ),
+        _tied_report(beginner),
+        build_report(
+            intermediate,
+            _forecast(intermediate, [_hour(height=0.1)]),
+            [],
+            WHEN,
+            WHEN + timedelta(hours=1),
+        ),
+    ]
+
+    ranking = rank_spots(reports, skill="beginner")
+
+    assert [row.report.spot_id for row in ranking.ranked] == ["beginner-spot"]
+    assert ranking.ranked[0].rank == "1"
+    # Above level keeps the score order, so the better but harder spot is first.
+    assert [report.spot_id for report in ranking.above_level] == [
+        "advanced-spot",
+        "intermediate-spot",
+    ]
+
+    included = rank_spots(reports, skill="intermediate")
+    assert [row.report.spot_id for row in included.ranked] == [
+        "beginner-spot",
+        "intermediate-spot",
+    ]
+    assert [row.rank for row in included.ranked] == ["1", "2"]
+    assert [report.spot_id for report in included.above_level] == ["advanced-spot"]
+
+
+def test_rank_spots_rejects_an_unknown_skill():
+    with pytest.raises(ValueError, match="skill must be"):
+        rank_spots([], skill="expert")  # type: ignore[arg-type]
+
+
+def _tied_report(spot: Spot):
+    return build_report(
+        spot,
+        _forecast(spot, [_hour(wind_speed=3)]),
+        [],
+        WHEN,
+        WHEN + timedelta(hours=1),
+    )
 
 
 def test_unverified_profile_is_an_uncertainty():

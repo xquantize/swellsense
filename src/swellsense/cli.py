@@ -3,7 +3,8 @@
 ``ingest`` downloads sources and prints one count line per source.
 ``tides`` prints Tauranga high and low waters for one day.
 ``forecast`` prints hourly swell and wind for one spot.
-``check`` rates a spot, or ranks every spot by its best hour.
+``check`` rates a spot, or ranks every spot by its best hour. Ties share a
+rank. ``--skill`` keeps harder spots in a separate list.
 """
 
 import argparse
@@ -13,7 +14,12 @@ from datetime import date, datetime, timedelta
 import httpx
 
 from swellsense.conditions.rating import HourRating
-from swellsense.conditions.report import ConditionsReport, build_report, rank_spots
+from swellsense.conditions.report import (
+    ConditionsReport,
+    SpotRanking,
+    build_report,
+    rank_spots,
+)
 from swellsense.forecast.models import SpotForecast
 from swellsense.forecast.openmeteo import fetch_forecast
 from swellsense.ingest.fetchers.mediawiki import make_client
@@ -88,6 +94,12 @@ def _main(argv: list[str] | None = None) -> int:
         default=12,
         help="How many hours to rate (default: 12)",
     )
+    check_parser.add_argument(
+        "--skill",
+        choices=["beginner", "intermediate", "advanced"],
+        metavar="LEVEL",
+        help="With --all, rank spots at or below this level and list the rest",
+    )
 
     args = parser.parse_args(argv)
     if args.command == "ingest":
@@ -97,7 +109,7 @@ def _main(argv: list[str] | None = None) -> int:
     if args.command == "forecast":
         return _forecast(args.spot_id, args.hours)
     if args.command == "check":
-        return _check(args.spot_id, args.all, args.hours)
+        return _check(args.spot_id, args.all, args.hours, args.skill)
     return 2
 
 
@@ -190,13 +202,21 @@ def _forecast(spot_id: str, hours: int) -> int:
     return 0
 
 
-def _check(spot_id: str | None, all_spots: bool, hours: int) -> int:
+def _check(
+    spot_id: str | None,
+    all_spots: bool,
+    hours: int,
+    skill: str | None,
+) -> int:
     """Print one spot's hours, or every spot ranked by its best hour."""
     if all_spots and spot_id is not None:
         print("pass a spot id or --all, not both", file=sys.stderr)
         return 2
     if not all_spots and spot_id is None:
         print("pass a spot id or --all", file=sys.stderr)
+        return 2
+    if skill is not None and not all_spots:
+        print("--skill is only used with --all", file=sys.stderr)
         return 2
 
     try:
@@ -239,7 +259,7 @@ def _check(spot_id: str | None, all_spots: bool, hours: int) -> int:
         return 1
 
     if all_spots:
-        _print_ranking(rank_spots(reports))
+        _print_ranking(rank_spots(reports, skill), skill)
     else:
         _print_check(reports[0])
     return 0
@@ -302,30 +322,50 @@ def _print_notes(report: ConditionsReport) -> None:
         print(line)
 
 
-def _print_ranking(reports: list[ConditionsReport]) -> None:
+def _print_ranking(ranking: SpotRanking, skill: str | None) -> None:
     print("Ranked by best hour (Pacific/Auckland)")
-    print(f"{'score':>5}  {'label':<5}  {'best hour':<16}  spot")
-    for report in reports:
-        best = report.best_hour
-        if best is None:
-            clock = "-"
-            score = "-"
-            label = "-"
+    print(f"{'rank':>4}  {_ranking_header()}")
+    for row in ranking.ranked:
+        print(f"{row.rank:>4}  {_ranking_fields(row.report)}")
+    if skill is not None:
+        print()
+        print("Above your level")
+        if ranking.above_level:
+            print(_ranking_header())
+            for report in ranking.above_level:
+                print(_ranking_fields(report))
         else:
-            clock = best.time.strftime("%Y-%m-%d %H:%M")
-            score = str(best.score)
-            label = best.label
-        print(
-            f"{score:>5}  {label:<5}  {clock:<16}  {report.spot_name} ({report.spot_id})"
-        )
+            print("none")
     print()
     seen: list[str] = []
-    for report in reports:
+    for report in [row.report for row in ranking.ranked] + list(ranking.above_level):
         for line in report.attributions:
             if line not in seen:
                 seen.append(line)
     for line in seen:
         print(line)
+
+
+def _ranking_header() -> str:
+    return (
+        f"{'score':>5}  {'label':<5}  {'best hour':<16}  "
+        f"{'min_skill':<12}  {'access':<6}  {'hazards':>7}  spot"
+    )
+
+
+def _ranking_fields(report: ConditionsReport) -> str:
+    best = report.best_hour
+    if best is None:
+        score, label, clock = "-", "-", "-"
+    else:
+        score = str(best.score)
+        label = best.label
+        clock = best.time.strftime("%Y-%m-%d %H:%M")
+    return (
+        f"{score:>5}  {label:<5}  {clock:<16}  {report.min_skill:<12}  "
+        f"{report.access:<6}  {len(report.hazards):>7}  "
+        f"{report.spot_name} ({report.spot_id})"
+    )
 
 
 def _print_forecast(spot: Spot, forecast: SpotForecast) -> None:

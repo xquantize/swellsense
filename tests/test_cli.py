@@ -358,13 +358,110 @@ def test_check_all_ranks_spots_by_best_hour(capsys, monkeypatch):
     assert caught.value.code == 0
     assert capsys.readouterr().out == (
         "Ranked by best hour (Pacific/Auckland)\n"
-        "score  label  best hour         spot\n"
-        "    8  great  2026-01-15 13:00  Example Beach (example)\n"
-        "    0  poor   2026-01-15 13:00  Flat Beach (flat)\n"
+        "rank  score  label  best hour         min_skill     access  hazards  spot\n"
+        "   1      8  great  2026-01-15 13:00  beginner      road          0  "
+        "Example Beach (example)\n"
+        "   2      0  poor   2026-01-15 13:00  beginner      road          0  "
+        "Flat Beach (flat)\n"
         "\n"
         f"{OPEN_METEO_ATTRIBUTION}\n"
         f"{LINZ_ATTRIBUTION}\n"
     )
+
+
+def test_check_all_skill_lists_spots_above_level(capsys, monkeypatch):
+    flat_hour = HourlyConditions(
+        time=datetime(2026, 1, 15, 13, 0, tzinfo=AUCKLAND),
+        swell_height_m=0.1,
+        swell_period_s=14,
+        swell_direction_deg=40,
+        wind_speed_kn=3,
+        wind_direction_deg=225,
+    )
+    spots = [
+        _spot().model_copy(update={"id": "easy", "name": "Easy Beach"}),
+        _spot().model_copy(
+            update={
+                "id": "hard",
+                "name": "Hard Reef",
+                "min_skill": "advanced",
+                "access": "boat",
+                "hazards": ["rips"],
+            }
+        ),
+    ]
+
+    def fake_fetch(client, spot, hours=48):
+        if spot.id == "easy":
+            return _check_forecast(spot.id, flat_hour)
+        return _check_forecast(spot.id)
+
+    monkeypatch.setattr("swellsense.cli.load_spots", lambda: spots)
+    monkeypatch.setattr("swellsense.cli.make_client", lambda: nullcontext(object()))
+    monkeypatch.setattr("swellsense.cli.fetch_forecast", fake_fetch)
+    monkeypatch.setattr("swellsense.cli.download_year", lambda year: FIXTURE)
+    monkeypatch.setattr("swellsense.cli.parse_predictions", lambda text: [])
+    monkeypatch.setattr(
+        "swellsense.cli._now_nz",
+        lambda: datetime(2026, 1, 15, 13, 20, tzinfo=AUCKLAND),
+    )
+
+    with pytest.raises(SystemExit) as caught:
+        main(["check", "--all", "--skill", "beginner", "--hours", "6"])
+
+    assert caught.value.code == 0
+    assert capsys.readouterr().out == (
+        "Ranked by best hour (Pacific/Auckland)\n"
+        "rank  score  label  best hour         min_skill     access  hazards  spot\n"
+        "   1      0  poor   2026-01-15 13:00  beginner      road          0  "
+        "Easy Beach (easy)\n"
+        "\n"
+        "Above your level\n"
+        "score  label  best hour         min_skill     access  hazards  spot\n"
+        "    8  great  2026-01-15 13:00  advanced      boat          1  "
+        "Hard Reef (hard)\n"
+        "\n"
+        f"{OPEN_METEO_ATTRIBUTION}\n"
+        f"{LINZ_ATTRIBUTION}\n"
+    )
+
+
+def test_check_all_skill_with_nothing_above_says_none(capsys, monkeypatch):
+    monkeypatch.setattr("swellsense.cli.load_spots", lambda: [_spot()])
+    monkeypatch.setattr("swellsense.cli.make_client", lambda: nullcontext(object()))
+    monkeypatch.setattr(
+        "swellsense.cli.fetch_forecast",
+        lambda client, spot, hours=48: _check_forecast(spot.id),
+    )
+    monkeypatch.setattr("swellsense.cli.download_year", lambda year: FIXTURE)
+    monkeypatch.setattr("swellsense.cli.parse_predictions", lambda text: [])
+    monkeypatch.setattr(
+        "swellsense.cli._now_nz",
+        lambda: datetime(2026, 1, 15, 13, 20, tzinfo=AUCKLAND),
+    )
+
+    with pytest.raises(SystemExit) as caught:
+        main(["check", "--all", "--skill", "advanced"])
+
+    assert caught.value.code == 0
+    output = capsys.readouterr().out
+    assert "Above your level\nnone\n" in output
+    assert "Example Beach (example)" in output
+
+
+def test_check_skill_without_all_exits_2(capsys):
+    with pytest.raises(SystemExit) as caught:
+        main(["check", "example", "--skill", "beginner"])
+
+    assert caught.value.code == 2
+    assert "--skill is only used with --all" in capsys.readouterr().err
+
+
+def test_check_rejects_an_unknown_skill():
+    with pytest.raises(SystemExit) as caught:
+        main(["check", "--all", "--skill", "expert"])
+
+    assert caught.value.code == 2
 
 
 def test_check_across_new_year_loads_both_tide_years(monkeypatch):
