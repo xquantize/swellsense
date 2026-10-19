@@ -40,6 +40,11 @@ def test_system_prompt_keeps_conditions_answers_honest():
         "sandbank",
         "windswell",
         "tied",
+        "only the reasons the tool returned",
+        "Never add your own explanation",
+        "left out of the rating",
+        "under about 100 words",
+        "No filler sign-offs",
     ):
         assert phrase in SYSTEM
 
@@ -222,3 +227,27 @@ def test_credit_is_added_when_the_forecast_was_used():
     )
 
     assert text == f"It's a 6, 1.2 m at 7 s, windswell.\n{CREDIT_LINE}"
+
+
+def test_emojis_are_stripped_from_the_final_answer():
+    def complete(messages, **kwargs):
+        if not any(message.get("role") == "tool" for message in messages):
+            return _message(
+                tool_calls=[
+                    _call("check_spot", '{"spot_id": "example", "when": "now"}')
+                ]
+            )
+        return _message(content="It's a 6 🌊, 1.2 m at 7 s 👍")
+
+    def dispatch_tool(name, arguments):
+        return '{"attributions": ["Open-Meteo", "LINZ"]}'
+
+    text = run_turn(
+        [{"role": "user", "content": "Is it worth it?"}],
+        complete=complete,
+        dispatch_tool=dispatch_tool,
+    )
+
+    assert "🌊" not in text
+    assert "👍" not in text
+    assert text == f"It's a 6, 1.2 m at 7 s\n{CREDIT_LINE}"
