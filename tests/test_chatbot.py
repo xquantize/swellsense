@@ -1,10 +1,17 @@
 """The tool loop, with a fake model. No network."""
 
 import copy
+import json
 from types import SimpleNamespace
 
 from swellsense.chat.tools import TOOLS
-from swellsense.chatbot import LIMIT_MESSAGE, MAX_TOOL_ROUNDS, SYSTEM, run_turn
+from swellsense.chatbot import (
+    CREDIT_LINE,
+    LIMIT_MESSAGE,
+    MAX_TOOL_ROUNDS,
+    SYSTEM,
+    run_turn,
+)
 
 
 def _call(name: str, arguments: str, call_id: str = "call-1"):
@@ -23,13 +30,15 @@ def test_system_prompt_keeps_conditions_answers_honest():
     # The model phrases the tool JSON. These lines are what stop it inventing
     # a session when the code has already decided the surf.
     for phrase in (
-        "no surfable hours",
+        "the morning's gone",
+        "Never say a tool name",
+        "passed_note",
         "Open-Meteo",
         "LINZ",
+        "only when the answer used forecast or tide data",
         "above your level",
         "sandbank",
         "windswell",
-        "already passed",
         "tied",
     ):
         assert phrase in SYSTEM
@@ -89,3 +98,127 @@ def test_tool_loop_stops_after_five_rounds():
     assert calls["n"] == MAX_TOOL_ROUNDS == 5
     assert dispatched["n"] == 5
     assert text == LIMIT_MESSAGE
+
+
+def test_passed_window_is_answered_in_ordinary_words():
+    """A fake model asks for the morning after it has passed, then phrases the note."""
+    from datetime import datetime
+
+    from test_chat_tools import _deps, _forecast, _hour
+
+    from swellsense.chat.tools import dispatch
+    from swellsense.forecast.models import AUCKLAND
+
+    now = datetime(2026, 1, 15, 14, 10, tzinfo=AUCKLAND)
+    deps = _deps(
+        forecast=lambda spot, count: _forecast(
+            spot.id, _hour(datetime(2026, 1, 15, 15, 0, tzinfo=AUCKLAND))
+        )
+    )
+
+    def complete(messages, **kwargs):
+        if not any(message.get("role") == "tool" for message in messages):
+            return _message(
+                tool_calls=[
+                    _call(
+                        "check_spot",
+                        '{"spot_id": "example", "when": "this_morning"}',
+                    )
+                ]
+            )
+        payload = json.loads(messages[-1]["content"])
+        assert payload["checked"] == "the rest of today"
+        assert "this_morning" not in messages[-1]["content"]
+        return _message(content=f"{payload['passed_note']} The rest of the day is a 6.")
+
+    text = run_turn(
+        [{"role": "user", "content": "Is it worth surfing this morning?"}],
+        complete=complete,
+        dispatch_tool=lambda name, arguments: dispatch(
+            name, arguments, deps=deps, now=now
+        ),
+    )
+
+    assert "The morning's gone." in text
+    assert "the rest of today" in text.casefold()
+    assert "this_morning" not in text
+    assert text.endswith(CREDIT_LINE)
+
+
+def test_evening_request_moves_on_to_tomorrow_morning():
+    from datetime import datetime
+
+    from test_chat_tools import _deps, _forecast, _hour
+
+    from swellsense.chat.tools import dispatch
+    from swellsense.forecast.models import AUCKLAND
+
+    now = datetime(2026, 1, 15, 19, 0, tzinfo=AUCKLAND)
+    deps = _deps(
+        forecast=lambda spot, count: _forecast(
+            spot.id, _hour(datetime(2026, 1, 16, 8, 0, tzinfo=AUCKLAND))
+        )
+    )
+
+    def complete(messages, **kwargs):
+        if not any(message.get("role") == "tool" for message in messages):
+            return _message(
+                tool_calls=[
+                    _call(
+                        "check_spot",
+                        '{"spot_id": "example", "when": "this_afternoon"}',
+                    )
+                ]
+            )
+        payload = json.loads(messages[-1]["content"])
+        return _message(content=payload["passed_note"])
+
+    text = run_turn(
+        [{"role": "user", "content": "How is this afternoon?"}],
+        complete=complete,
+        dispatch_tool=lambda name, arguments: dispatch(
+            name, arguments, deps=deps, now=now
+        ),
+    )
+
+    assert text.startswith("The afternoon's gone. Here's tomorrow morning.")
+    assert "this_afternoon" not in text
+    assert "tomorrow_morning" not in text
+    assert text.endswith(CREDIT_LINE)
+
+
+def test_credit_is_left_off_when_no_forecast_was_used():
+    def complete(messages, **kwargs):
+        return _message(content=f"A fish is the board.\n{CREDIT_LINE}")
+
+    text = run_turn(
+        [{"role": "user", "content": "What board should I ride?"}],
+        complete=complete,
+    )
+
+    assert text == "A fish is the board."
+    assert "Open-Meteo" not in text
+    assert "LINZ" not in text
+
+
+def test_credit_is_added_when_the_forecast_was_used():
+    def complete(messages, **kwargs):
+        if not any(message.get("role") == "tool" for message in messages):
+            return _message(
+                tool_calls=[
+                    _call("check_spot", '{"spot_id": "example", "when": "now"}')
+                ]
+            )
+        return _message(content="It's a 6, 1.2 m at 7 s, windswell.")
+
+    def dispatch_tool(name, arguments):
+        assert name == "check_spot"
+        return '{"best_hour": {"score": 6}, "attributions": ["Open-Meteo", "LINZ"]}'
+
+    text = run_turn(
+        [{"role": "user", "content": "Is it worth it?"}],
+        complete=complete,
+        dispatch_tool=dispatch_tool,
+    )
+
+    assert text == f"It's a 6, 1.2 m at 7 s, windswell.\n{CREDIT_LINE}"

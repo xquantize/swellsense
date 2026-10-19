@@ -2,8 +2,8 @@
 
 The model only chooses a tool and phrases the JSON. Every judgement, the
 time window, the score and the ranking, is made in code. A window that has
-already finished today comes back as an error so the answer does not quietly
-become tomorrow.
+already finished is answered from the next sensible one: the rest of today,
+or tomorrow morning once it is evening. The note for that is ordinary speech.
 """
 
 import json
@@ -63,27 +63,47 @@ _CLOCKS = {
 
 _TODAY = ("this_morning", "this_afternoon", "this_evening")
 
-_PASSED_HINT = {
-    "this_morning": "this_afternoon, this_evening or tomorrow_morning",
-    "this_afternoon": "this_evening, tomorrow_morning or tomorrow_afternoon",
-    "this_evening": "tomorrow_morning or tomorrow_afternoon",
+# Spoken in the tool result. The parameter name stays on the tool call only.
+_SPOKEN = {
+    "now": "the next three hours",
+    "this_morning": "this morning",
+    "this_afternoon": "this afternoon",
+    "this_evening": "this evening",
+    "tomorrow_morning": "tomorrow morning",
+    "tomorrow_afternoon": "tomorrow afternoon",
+    "next_12_hours": "the next 12 hours",
+    "next_24_hours": "the next 24 hours",
+    "rest_of_today": "the rest of today",
 }
+
+_GONE = {
+    "this_morning": "The morning's gone.",
+    "this_afternoon": "The afternoon's gone.",
+    "this_evening": "The evening's gone.",
+}
+
+# Once the evening window has started, a passed request moves to tomorrow
+# morning. Earlier than that, it moves to whatever is left of today, which
+# runs until the evening window ends.
+_EVENING_HOUR = 17
+_SURF_DAY_END = 21
 
 WHEN_HELP = (
     "Pacific/Auckland window. now is the next 3 hours. "
     "this_morning is 05:00-11:00, this_afternoon is 12:00-18:00, "
     "this_evening is 17:00-21:00. tomorrow_morning and tomorrow_afternoon "
     "use those clocks tomorrow. next_12_hours and next_24_hours start at "
-    "the current hour. A window that has already passed returns an error."
+    "the current hour. If that part of today has already passed, the tool "
+    "checks the rest of today, or tomorrow morning once it is evening."
 )
 
 
 @dataclass(frozen=True)
 class TimeWindow:
-    """A half-open Auckland window, or a note that today's window is over.
+    """A half-open Auckland window.
 
-    ``end`` is exclusive. ``message`` is set only when the window has already
-    passed, so the caller can say so instead of moving the question to tomorrow.
+    ``end`` is exclusive. ``message`` is set only when this named window has
+    already passed. The answer then uses a later window, and says so.
     """
 
     name: str
@@ -100,10 +120,10 @@ def resolve_when(when: str, now: datetime) -> TimeWindow:
     """Turn a window name into Pacific/Auckland start and end.
 
     The window named ``now`` is the next three hours from the current hour.
-    Named parts of today keep their clocks, and once that clock has passed
-    the result says so. Tomorrow's windows are the next calendar day. The
-    clocks are built in Pacific/Auckland, so a daylight-saving morning gets
-    that morning's real offset.
+    Named parts of today keep their clocks. Once that clock has passed,
+    ``message`` says so in ordinary words. Tomorrow's windows are the next
+    calendar day. The clocks are built in Pacific/Auckland, so a
+    daylight-saving morning gets that morning's real offset.
     """
     if when not in WHENS:
         raise ValueError(f"unknown when: {when}")
@@ -132,9 +152,34 @@ def resolve_when(when: str, now: datetime) -> TimeWindow:
 
 def _passed_message(name: str, end: datetime) -> str:
     clock = end.strftime("%H:%M")
+    return f"{_GONE[name]} It ended at {clock}."
+
+
+def window_for_answer(when: str, now: datetime) -> tuple[TimeWindow, str | None]:
+    """The window to rate, plus a spoken note when the request had passed.
+
+    Before evening, a passed morning or afternoon is answered with the rest
+    of today. From 17:00, the next sensible check is tomorrow morning. The
+    note is what the surfer should hear, with no parameter names in it.
+    """
+    requested = resolve_when(when, now)
+    if not requested.passed:
+        return requested, None
+
+    local = _aware(now)
+    gone = _GONE[when]
+    if local.hour >= _EVENING_HOUR:
+        later = resolve_when("tomorrow_morning", local)
+        return later, f"{gone} Here's tomorrow morning."
+
+    start = _floor_hour(local)
+    end = _clock(local.date(), _SURF_DAY_END)
+    if start >= end:
+        later = resolve_when("tomorrow_morning", local)
+        return later, f"{gone} Here's tomorrow morning."
     return (
-        f"{name} has already passed today. It ended at {clock} Pacific/Auckland. "
-        f"Ask about {_PASSED_HINT[name]}."
+        TimeWindow("rest_of_today", start, end),
+        f"{gone} Here's the rest of today.",
     )
 
 
@@ -229,11 +274,9 @@ def check_spot(
     source = deps or ToolDeps()
     try:
         local = _aware(now or datetime.now(AUCKLAND))
-        window = resolve_when(when, local)
+        window, passed_note = window_for_answer(when, local)
     except ValueError as exc:
         return {"error": str(exc)}
-    if window.passed:
-        return {"error": window.message, "when": window.name}
 
     spots = source.spots()
     try:
@@ -249,9 +292,8 @@ def check_spot(
         return {"error": f"could not check {spot.id}: {exc}"}
 
     payload = _spot_payload(report)
-    payload.update(_window_fields(window, local))
+    payload.update(_window_fields(window, local, when, passed_note))
     payload["attributions"] = list(report.attributions)
-    payload["credit"] = DATA_CREDIT
     return payload
 
 
@@ -266,11 +308,9 @@ def rank_spots(
     source = deps or ToolDeps()
     try:
         local = _aware(now or datetime.now(AUCKLAND))
-        window = resolve_when(when, local)
+        window, passed_note = window_for_answer(when, local)
     except ValueError as exc:
         return {"error": str(exc)}
-    if window.passed:
-        return {"error": window.message, "when": window.name}
 
     spots = source.spots()
     try:
@@ -289,12 +329,11 @@ def rank_spots(
     except (httpx.HTTPError, ValueError, OSError) as exc:
         return {"error": f"could not rank spots: {exc}"}
 
-    payload = _window_fields(window, local)
+    payload = _window_fields(window, local, when, passed_note)
     payload["skill"] = skill
     payload["ranked"] = [_ranked_row(row) for row in ranking.ranked]
     payload["above_level"] = [_above_row(report) for report in ranking.above_level]
     payload["attributions"] = _attributions(reports)
-    payload["credit"] = DATA_CREDIT
     return payload
 
 
@@ -305,9 +344,16 @@ def _unknown_spot(spot_id: str, spots: list[Spot]) -> dict:
     }
 
 
-def _window_fields(window: TimeWindow, now: datetime) -> dict:
-    return {
-        "when": window.name,
+def _window_fields(
+    window: TimeWindow,
+    now: datetime,
+    asked: str,
+    passed_note: str | None,
+) -> dict:
+    # ``checked`` is ordinary speech. The parameter name is not repeated
+    # here, or the model reads it out to the surfer.
+    fields = {
+        "checked": _SPOKEN[window.name],
         "timezone": "Pacific/Auckland",
         "now": now.strftime("%Y-%m-%d %H:%M"),
         "window": {
@@ -315,6 +361,10 @@ def _window_fields(window: TimeWindow, now: datetime) -> dict:
             "end": window.end.strftime("%Y-%m-%d %H:%M"),
         },
     }
+    if passed_note is not None:
+        fields["asked"] = _SPOKEN[asked]
+        fields["passed_note"] = passed_note
+    return fields
 
 
 def _spot_payload(report: ConditionsReport) -> dict:

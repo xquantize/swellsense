@@ -138,10 +138,7 @@ def test_morning_keeps_the_offset_across_the_daylight_saving_change():
 def test_a_window_that_has_passed_says_so():
     passed = resolve_when("this_morning", datetime(2026, 1, 15, 11, 0, tzinfo=AUCKLAND))
     assert passed.passed is True
-    assert passed.message is not None
-    assert "already passed" in passed.message
-    assert "11:00" in passed.message
-    assert "this_afternoon" in passed.message
+    assert passed.message == "The morning's gone. It ended at 11:00."
 
     still_open = resolve_when(
         "this_evening", datetime(2026, 1, 15, 20, 59, tzinfo=AUCKLAND)
@@ -154,18 +151,48 @@ def test_a_window_that_has_passed_says_so():
         "this_evening", datetime(2026, 1, 15, 21, 0, tzinfo=AUCKLAND)
     )
     assert evening.passed is True
-    assert "tomorrow_morning" in (evening.message or "")
+    assert evening.message == "The evening's gone. It ended at 21:00."
 
 
-def test_a_passed_window_is_not_fetched():
+def test_a_passed_morning_checks_the_rest_of_today():
+    seen = {}
+
+    def forecast(spot, count):
+        seen["hours"] = count
+        return _forecast(spot.id, _hour(datetime(2026, 1, 15, 15, 0, tzinfo=AUCKLAND)))
+
     result = check_spot(
         "example",
         "this_morning",
-        deps=_deps(),
-        now=datetime(2026, 1, 15, 11, 0, tzinfo=AUCKLAND),
+        deps=_deps(forecast=forecast),
+        now=datetime(2026, 1, 15, 14, 10, tzinfo=AUCKLAND),
     )
-    assert "already passed" in result["error"]
-    assert result["when"] == "this_morning"
+
+    assert result["asked"] == "this morning"
+    assert result["checked"] == "the rest of today"
+    assert result["passed_note"] == "The morning's gone. Here's the rest of today."
+    assert result["window"] == {"start": "2026-01-15 14:00", "end": "2026-01-15 21:00"}
+    assert seen["hours"] == 7
+    assert "this_morning" not in json.dumps(result)
+
+
+def test_a_passed_afternoon_in_the_evening_checks_tomorrow_morning():
+    result = check_spot(
+        "example",
+        "this_afternoon",
+        deps=_deps(
+            forecast=lambda spot, count: _forecast(
+                spot.id, _hour(datetime(2026, 1, 16, 8, 0, tzinfo=AUCKLAND))
+            )
+        ),
+        now=datetime(2026, 1, 15, 19, 0, tzinfo=AUCKLAND),
+    )
+
+    assert result["asked"] == "this afternoon"
+    assert result["checked"] == "tomorrow morning"
+    assert result["passed_note"] == "The afternoon's gone. Here's tomorrow morning."
+    assert result["window"] == {"start": "2026-01-16 05:00", "end": "2026-01-16 11:00"}
+    assert "this_afternoon" not in json.dumps(result)
 
 
 def test_naive_now_is_rejected():
@@ -243,7 +270,7 @@ def test_flat_best_hour_is_no_surfable_hours():
     assert "0.1" in result["hours"][0]["swell"]
     assert "6" in result["hours"][0]["swell"]
     assert any("not verified" in note for note in result["uncertainties"])
-    assert result["credit"] == "Open-Meteo and LINZ"
+    assert "credit" not in result
     assert OPEN_METEO_ATTRIBUTION in result["attributions"]
     assert LINZ_ATTRIBUTION in result["attributions"]
 
