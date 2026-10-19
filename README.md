@@ -8,7 +8,7 @@
 
 Early development. What works today:
 
-- **Terminal chat** with a local model through Ollama. Not yet grounded in sources, so treat its answers with caution.
+- **Terminal chat** with a local model through Ollama. Conditions questions ("is it worth surfing?", "where should I go?") are answered from the conditions check. The model chooses the tool and phrases the result; the score is computed in code. Other answers are not grounded in sources yet, so treat those with caution.
 - **Knowledge ingestion**: downloads surf knowledge from Wikipedia into local storage, keeping the source URL, license and attribution on every document.
 - **Tauranga tides**: prints LINZ high and low waters for a day, with the required acknowledgement.
 - **Spot forecast**: hourly swell, wind waves and wind for a Bay of Plenty spot, from Open-Meteo.
@@ -51,7 +51,7 @@ In `.env`, set `HTTP_USER_AGENT` to identify the project to source sites, for ex
 
 | Command | What it does |
 | --- | --- |
-| `uv run python -m swellsense.chatbot` | Chat in the terminal (needs Ollama running) |
+| `uv run python -m swellsense.chatbot` | Chat in the terminal (needs Ollama). Conditions questions use the live check |
 | `uv run swellsense ingest` | Download all sources into `data/raw/` |
 | `uv run swellsense ingest --source wikipedia` | Download a single source |
 | `uv run swellsense tides` | Print today's Tauranga highs and lows |
@@ -84,6 +84,7 @@ src/swellsense/
   tides/        LINZ tide predictions and tide state
   forecast/     Open-Meteo swell and wind for one spot
   conditions/   wind, swell and tide judgements, and the hourly rating
+  chat/         conditions tools the chatbot can call
   chatbot.py    terminal chat
   cli.py        the swellsense command
 data/sources.yaml   all data sources
@@ -97,7 +98,7 @@ scripts/check.sh    the single check command
 - [x] Knowledge ingestion: source registry, fetching, raw storage
 - [ ] Processing: cleaning, chunking, embeddings, Postgres with pgvector
 - [ ] Grounded chat: retrieval with citations
-- [ ] Live conditions: forecast, tides, classifiers and an explainable conditions check are in, including a ranking that shows ties and respects skill and access; the chatbot does not answer with them yet
+- [ ] Live conditions: forecast, tides, classifiers, an explainable conditions check and a ranking are in. The chatbot answers a spot check or "where should I go" from those tools. Other answers are not grounded in sources yet.
 - [ ] Spots and maps: spot profiles and "where to surf" recommendations
 - [ ] Board advice grounded in sources
 - [ ] Session logbook and personalisation
