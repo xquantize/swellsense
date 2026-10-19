@@ -12,7 +12,7 @@ Early development. What works today:
 - **Knowledge ingestion**: downloads surf knowledge from Wikipedia into local storage, keeping the source URL, license and attribution on every document.
 - **Tauranga tides**: prints LINZ high and low waters for a day, with the required acknowledgement.
 - **Spot forecast**: hourly swell, wind waves and wind for a Bay of Plenty spot, from Open-Meteo.
-- **Conditions check**: rates the next few hours at a spot from that forecast, the tide and the spot profile, or ranks every spot by its best hour.
+- **Conditions check**: rates the next few hours at a spot from that forecast, the tide and the spot profile, or ranks every spot by its best hour. Tied scores share a rank, and a skill level leaves harder spots on a separate list.
 
 Next up: a database with retrieval, so answers come from real sources with citations. See the [Roadmap](#roadmap).
 
@@ -59,7 +59,8 @@ In `.env`, set `HTTP_USER_AGENT` to identify the project to source sites, for ex
 | `uv run swellsense forecast mount-main-beach` | Print 12 hours of swell and wind for a spot |
 | `uv run swellsense forecast mount-main-beach --hours 48` | Print a longer forecast |
 | `uv run swellsense check mount-main-beach` | Rate the next 12 hours at a spot |
-| `uv run swellsense check --all` | Rank every spot by its best hour |
+| `uv run swellsense check --all` | Rank every spot by its best hour, showing ties as ties |
+| `uv run swellsense check --all --skill beginner` | Rank spots at a skill level, and list the harder ones |
 | `bash scripts/check.sh` | Lint, format check and tests |
 
 ## Data and licensing
@@ -96,7 +97,7 @@ scripts/check.sh    the single check command
 - [x] Knowledge ingestion: source registry, fetching, raw storage
 - [ ] Processing: cleaning, chunking, embeddings, Postgres with pgvector
 - [ ] Grounded chat: retrieval with citations
-- [ ] Live conditions: forecast, tides, classifiers and an explainable conditions check are in; the chatbot does not answer with them yet
+- [ ] Live conditions: forecast, tides, classifiers and an explainable conditions check are in, including a ranking that shows ties and respects skill and access; the chatbot does not answer with them yet
 - [ ] Spots and maps: spot profiles and "where to surf" recommendations
 - [ ] Board advice grounded in sources
 - [ ] Session logbook and personalisation
