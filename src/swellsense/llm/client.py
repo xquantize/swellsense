@@ -2,6 +2,7 @@ import logging
 import time
 
 from openai import OpenAI
+from openai.types.chat import ChatCompletionMessage
 from pydantic import BaseModel, ValidationError
 
 from swellsense.config import get_settings
@@ -19,7 +20,8 @@ def get_client() -> OpenAI:
     )
 
 
-def _complete(messages: list[dict], **kwargs) -> str:
+def _request(messages: list[dict], **kwargs):
+    """One chat completion. Callers decide whether they need the text or the message."""
     s = get_settings()
     if s.llm_reasoning_effort:
         kwargs["reasoning_effort"] = s.llm_reasoning_effort
@@ -39,7 +41,22 @@ def _complete(messages: list[dict], **kwargs) -> str:
         elapsed,
         usage.completion_tokens / elapsed,
     )
-    return response.choices[0].message.content
+    return response
+
+
+def complete_message(messages: list[dict], **kwargs) -> ChatCompletionMessage:
+    """Return the assistant message, including any tool calls.
+
+    ``chat`` and ``respond`` return only the text. A tool call has no final
+    answer yet, so the caller has to see the message itself.
+    """
+    return _request(messages, **kwargs).choices[0].message
+
+
+def _complete(messages: list[dict], **kwargs) -> str:
+    # A tool-call message has no text. Callers of this path asked for text.
+    content = complete_message(messages, **kwargs).content
+    return content if content is not None else ""
 
 
 def chat(prompt: str, system: str | None = None) -> str:
@@ -51,7 +68,10 @@ def chat(prompt: str, system: str | None = None) -> str:
 
 
 def respond(messages: list[dict]) -> str:
-    """Continue a conversation, given the full message history."""
+    """Continue a conversation and return the assistant text.
+
+    Use ``complete_message`` when the reply may be a tool call.
+    """
     return _complete(messages)
 
 
