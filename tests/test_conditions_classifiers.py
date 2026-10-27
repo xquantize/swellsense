@@ -185,6 +185,12 @@ def test_missing_spot_does_not_crash():
         (314, "outside"),
         (76, "outside"),
         (180, "outside"),
+        (329.9, "marginal"),  # 0.1° outside 330°
+        (315.1, "marginal"),  # 14.9° outside 330°
+        (314.9, "outside"),  # 15.1° outside 330°
+        (60.1, "marginal"),  # 0.1° outside 60°
+        (74.9, "marginal"),  # 14.9° outside 60°
+        (75.1, "outside"),  # 15.1° outside 60°
     ],
 )
 def test_swell_window_crossing_north(direction: float, fit: str):
@@ -205,6 +211,12 @@ def test_swell_window_crossing_north(direction: float, fit: str):
         (105, "marginal"),  # 15° outside the end
         (344, "outside"),
         (106, "outside"),
+        (359.9, "marginal"),  # 0.1° outside the start
+        (345.1, "marginal"),  # 14.9° outside the start
+        (344.9, "outside"),  # 15.1° outside the start
+        (90.1, "marginal"),  # 0.1° outside the end
+        (104.9, "marginal"),  # 14.9° outside the end
+        (105.1, "outside"),  # 15.1° outside the end
     ],
 )
 def test_swell_marginal_band_is_15_degrees(direction: float, fit: str):
