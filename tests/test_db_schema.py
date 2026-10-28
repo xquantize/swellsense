@@ -25,6 +25,36 @@ def test_schema_sql_defines_tables_extension_and_index() -> None:
     assert "vector_cosine_ops" in sql
 
 
+def test_db_init_commits_before_close(capsys, monkeypatch) -> None:
+    calls: list[str] = []
+
+    class FakeConn:
+        def commit(self) -> None:
+            calls.append("commit")
+
+        def close(self) -> None:
+            calls.append("close")
+
+    fake = FakeConn()
+
+    def fake_connect():
+        return fake
+
+    def fake_init_schema(conn) -> None:
+        assert conn is fake
+
+    monkeypatch.setattr("swellsense.cli.connect", fake_connect)
+    monkeypatch.setattr("swellsense.cli.init_schema", fake_init_schema)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["db", "init"])
+
+    assert caught.value.code == 0
+    assert calls == ["commit", "close"]
+    out = capsys.readouterr().out.strip()
+    assert out == "database schema initialized"
+
+
 def test_db_init_connection_failure_exits_1(capsys, monkeypatch) -> None:
     def fail_connect():
         raise psycopg.OperationalError("connection refused")
@@ -41,14 +71,38 @@ def test_db_init_connection_failure_exits_1(capsys, monkeypatch) -> None:
 
 
 @pytest.mark.db
-def test_init_schema_is_idempotent_and_vector_round_trips() -> None:
+def test_db_init_persists_schema_on_new_connection(capsys) -> None:
     from swellsense.config import get_settings
+
+    with pytest.raises(SystemExit) as caught:
+        main(["db", "init"])
+    assert caught.value.code == 0
+    assert "database schema initialized" in capsys.readouterr().out
 
     conn = psycopg.connect(get_settings().database_url.get_secret_value())
     try:
-        init_schema(conn)
-        init_schema(conn)
+        chunks = conn.execute("SELECT to_regclass('public.chunks')").fetchone()[0]
+        documents = conn.execute("SELECT to_regclass('public.documents')").fetchone()[0]
+        assert chunks == "chunks"
+        assert documents == "documents"
+    finally:
+        conn.close()
 
+
+@pytest.mark.db
+def test_init_schema_is_idempotent_and_vector_round_trips() -> None:
+    from swellsense.config import get_settings
+
+    url = get_settings().database_url.get_secret_value()
+    conn = psycopg.connect(url)
+    try:
+        init_schema(conn)
+        init_schema(conn)
+    finally:
+        conn.close()
+
+    conn = psycopg.connect(url)
+    try:
         embedding = Vector([float(i) for i in range(768)])
         conn.execute("BEGIN")
         try:

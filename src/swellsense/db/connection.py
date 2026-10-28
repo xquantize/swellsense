@@ -33,6 +33,7 @@ def init_schema(conn: psycopg.Connection) -> None:
         conn.execute(statement)
     _check_embedding_dimension(conn)
     register_vector(conn)
+    conn.commit()
 
 
 def _split_sql_statements(sql: str) -> list[str]:

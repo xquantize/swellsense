@@ -131,6 +131,7 @@ def _db_init() -> int:
         try:
             init_schema(conn)
         finally:
+            conn.commit()
             conn.close()
     except (psycopg.Error, ValueError) as exc:
         print(str(exc), file=sys.stderr)
