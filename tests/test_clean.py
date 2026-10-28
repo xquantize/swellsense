@@ -40,8 +40,8 @@ def test_nested_headings_levels_two_three_four():
     assert clean_sections(text) == [
         Section(heading="", text="Lead."),
         Section(heading="Level two", text="Two body."),
-        Section(heading="Level three", text="Three body."),
-        Section(heading="Level four", text="Four body."),
+        Section(heading="Level two > Level three", text="Three body."),
+        Section(heading="Level two > Level three > Level four", text="Four body."),
     ]
 
 
@@ -78,6 +78,32 @@ def test_nested_heading_under_dropped_section_is_kept():
     text = "== References ==\nRef list.\n=== Detail ===\nStill useful."
     assert clean_sections(text) == [
         Section(heading="Detail", text="Still useful."),
+    ]
+
+
+def test_sibling_h3s_under_one_h2_share_parent_in_path():
+    text = "== Parent ==\nIntro.\n=== Child one ===\nOne.\n=== Child two ===\nTwo."
+    assert clean_sections(text) == [
+        Section(heading="Parent", text="Intro."),
+        Section(heading="Parent > Child one", text="One."),
+        Section(heading="Parent > Child two", text="Two."),
+    ]
+
+
+def test_h2_after_h3_pops_back_to_new_h2_path():
+    text = "== A ==\nA body.\n=== B ===\nB body.\n== C ==\nC body."
+    assert clean_sections(text) == [
+        Section(heading="A", text="A body."),
+        Section(heading="A > B", text="B body."),
+        Section(heading="C", text="C body."),
+    ]
+
+
+def test_dropped_parent_path_omits_name_child_not_glued_to_prior_kept():
+    text = "== Intro ==\nKeep.\n== References ==\nRefs.\n=== Detail ===\nNested keep."
+    assert clean_sections(text) == [
+        Section(heading="Intro", text="Keep."),
+        Section(heading="Detail", text="Nested keep."),
     ]
 
 

@@ -57,6 +57,14 @@ def test_short_section_is_one_chunk():
     assert chunks[0].id == f"{doc.id}#0"
 
 
+def test_chunk_section_carries_full_heading_path():
+    text = "== Parent ==\nLead.\n=== Child ===\nNested body here."
+    chunks = chunk_document(_document(text=text), max_words=50, overlap_words=3)
+    nested = [c for c in chunks if c.text == "Nested body here."]
+    assert len(nested) == 1
+    assert nested[0].section == "Parent > Child"
+
+
 def test_section_at_max_words_is_one_chunk():
     body = _words(10)
     text = f"== Surf ==\n{body}"

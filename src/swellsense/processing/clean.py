@@ -49,27 +49,39 @@ def _drop_heading(heading: str) -> bool:
     return heading.strip().casefold() in _DROPPED_HEADINGS
 
 
+def _heading_path(stack: list[tuple[int, str]]) -> str:
+    """Join kept ancestor headings for citation paths (drops boilerplate titles)."""
+    kept = [title for _, title in stack if not _drop_heading(title)]
+    return " > ".join(kept)
+
+
 def clean_sections(text: str) -> list[Section]:
     """Split plain MediaWiki text into sections, dropping boilerplate blocks."""
     if text == "":
         return []
 
     sections: list[Section] = []
-    current_heading = ""
+    stack: list[tuple[int, str]] = []
+    current_leaf = ""
     body_lines: list[str] = []
 
     def flush() -> None:
         nonlocal body_lines
         body = _normalize_section_text("\n".join(body_lines))
-        if not _drop_heading(current_heading) and body:
-            sections.append(Section(heading=current_heading, text=body))
+        if not _drop_heading(current_leaf) and body:
+            sections.append(Section(heading=_heading_path(stack), text=body))
         body_lines = []
 
     for line in text.splitlines():
         match = _HEADING_RE.match(line)
         if match:
             flush()
-            current_heading = match.group(2).strip()
+            level = len(match.group(1))
+            title = match.group(2).strip()
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+            stack.append((level, title))
+            current_leaf = title
         else:
             body_lines.append(line)
 
