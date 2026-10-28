@@ -36,6 +36,8 @@ def embed(texts: list[str], kind: Literal["document", "query"]) -> list[list[flo
             input=prefixed,
         )
         items = sorted(response.data, key=lambda d: d.index)
+        if len(items) != len(batch):
+            raise ValueError(f"embedding count {len(items)} != expected {len(batch)}")
         for item in items:
             vector = list(item.embedding)
             if len(vector) != expected:

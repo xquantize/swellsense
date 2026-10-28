@@ -164,3 +164,22 @@ def test_embed_raises_on_dimension_mismatch(monkeypatch):
 
     with pytest.raises(ValueError, match="4 != expected 768"):
         embed(["x"], "document")
+
+
+def test_embed_raises_when_response_count_mismatch(monkeypatch):
+    dimensions = 768
+    monkeypatch.setattr(
+        "swellsense.llm.embeddings.get_settings",
+        lambda: _embed_settings(batch_size=32, dimensions=dimensions),
+    )
+
+    def create(**kwargs):
+        return SimpleNamespace(
+            data=[SimpleNamespace(index=0, embedding=_vector(dimensions, 0.0))]
+        )
+
+    client = SimpleNamespace(embeddings=SimpleNamespace(create=create))
+    monkeypatch.setattr("swellsense.llm.embeddings.get_client", lambda: client)
+
+    with pytest.raises(ValueError, match="1 != expected 2"):
+        embed(["first", "second"], "document")
