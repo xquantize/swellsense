@@ -11,7 +11,7 @@
 ## Progress (tick each box in the slice's own PR)
 
 - [x] Slice 1: Clean raw pages into sections
-- [ ] Slice 2: Chunk a document with its citation metadata
+- [x] Slice 2: Chunk a document with its citation metadata
 - [ ] Slice 3: Embedding function in `swellsense.llm`
 - [ ] Slice 4: Local Postgres, schema and `swellsense db init`
 - [ ] Slice 7: Postgres service container in CI

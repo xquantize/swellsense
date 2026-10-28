@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     )
     http_timeout_s: float = 30
     request_delay_s: float = 1.0
+    chunk_words: int = 300
+    chunk_overlap_words: int = 50
 
 
 @lru_cache
