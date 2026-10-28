@@ -7,6 +7,7 @@ from pathlib import Path
 import psycopg
 import pytest
 from pgvector import Vector
+from pgvector.psycopg import register_vector
 
 from swellsense.cli import main
 from swellsense.db.connection import init_schema
@@ -103,6 +104,7 @@ def test_init_schema_is_idempotent_and_vector_round_trips() -> None:
 
     conn = psycopg.connect(url)
     try:
+        register_vector(conn)
         embedding = Vector([float(i) for i in range(768)])
         conn.execute("BEGIN")
         try:
