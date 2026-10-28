@@ -3,6 +3,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 import httpx
+import openai
 import psycopg
 import pytest
 
@@ -98,9 +99,31 @@ def test_process_postgres_unreachable_exits_1(capsys, monkeypatch):
     assert capsys.readouterr().err.strip() == "connection refused"
 
 
+def test_process_ollama_unreachable_exits_1(capsys, monkeypatch):
+    conn = _FakeConn()
+
+    def fail_process(*args, **kwargs):
+        del args, kwargs
+        raise openai.APIConnectionError(message="connection failed", request=None)
+
+    monkeypatch.setattr("swellsense.cli.load_all", list)
+    monkeypatch.setattr("swellsense.cli.connect", lambda: conn)
+    monkeypatch.setattr("swellsense.cli.process", fail_process)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["process"])
+
+    assert caught.value.code == 1
+    assert capsys.readouterr().err.strip() == "connection failed"
+    assert not conn.committed
+
+
 class _FakeConn:
+    def __init__(self) -> None:
+        self.committed = False
+
     def commit(self) -> None:
-        return None
+        self.committed = True
 
     def close(self) -> None:
         return None

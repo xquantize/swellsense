@@ -6,17 +6,16 @@ One bad document is recorded and the rest still process, mirroring ingest runs.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol
 
+import openai
+import psycopg
 from pydantic import BaseModel, Field
 
 from swellsense.config import get_settings
 from swellsense.ingest.models import RawDocument
 from swellsense.processing.chunk import chunk_document
 from swellsense.processing.models import Chunk
-
-if TYPE_CHECKING:
-    import psycopg
 
 
 class ChunkStore(Protocol):
@@ -91,6 +90,8 @@ def process(
                 settings.chunk_overlap_words,
                 settings.embedding_model,
             )
+        except (openai.APIError, psycopg.Error):
+            raise
         except Exception as exc:  # noqa: BLE001
             report.failed.append({"id": doc.id, "error": str(exc)})
             continue

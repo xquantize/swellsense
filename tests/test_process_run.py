@@ -2,6 +2,7 @@ import hashlib
 import struct
 from datetime import UTC, datetime
 
+import openai
 import pytest
 
 from swellsense.config import Settings
@@ -220,6 +221,23 @@ def test_one_failing_document_continues(chunk_settings):
     assert store.existing_hashes(good.id)
     assert store.existing_hashes(after.id)
     assert not store.existing_hashes(bad.id)
+
+
+def test_openai_api_error_propagates(chunk_settings):
+    first = _document(title="first", text="== Surf ==\n" + _words(10))
+    second = _document(title="second", text="== Surf ==\n" + _words(10))
+    store = InMemoryChunkStore()
+    calls: list[list[str]] = []
+
+    def embed_fn(texts: list[str]) -> list[list[float]]:
+        calls.append(list(texts))
+        raise openai.APIConnectionError(message="connection failed", request=None)
+
+    with pytest.raises(openai.APIConnectionError, match="connection failed"):
+        process([first, second], embed_fn, store)
+
+    assert len(calls) == 1
+    assert not store.existing_hashes(second.id)
 
 
 def test_store_value_error_is_recorded(chunk_settings):
