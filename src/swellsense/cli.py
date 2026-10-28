@@ -5,6 +5,7 @@
 ``forecast`` prints hourly swell and wind for one spot.
 ``check`` rates a spot, or ranks every spot by its best hour. Ties share a
 rank. ``--skill`` keeps harder spots in a separate list.
+``db init`` creates the local Postgres schema (pgvector, documents, chunks).
 """
 
 import argparse
@@ -12,6 +13,7 @@ import sys
 from datetime import date, datetime, timedelta
 
 import httpx
+import psycopg
 
 from swellsense.conditions.rating import HourRating
 from swellsense.conditions.report import (
@@ -20,6 +22,7 @@ from swellsense.conditions.report import (
     build_report,
     rank_spots,
 )
+from swellsense.db import connect, init_schema
 from swellsense.forecast.models import SpotForecast
 from swellsense.forecast.openmeteo import fetch_forecast
 from swellsense.ingest.fetchers.mediawiki import make_client
@@ -101,6 +104,13 @@ def _main(argv: list[str] | None = None) -> int:
         help="With --all, rank spots at or below this level and list the rest",
     )
 
+    db_parser = subparsers.add_parser("db", help="Local Postgres setup")
+    db_subparsers = db_parser.add_subparsers(dest="db_command", required=True)
+    db_subparsers.add_parser(
+        "init",
+        help="Create pgvector extension and document/chunk tables",
+    )
+
     args = parser.parse_args(argv)
     if args.command == "ingest":
         return _ingest(args.source)
@@ -110,7 +120,23 @@ def _main(argv: list[str] | None = None) -> int:
         return _forecast(args.spot_id, args.hours)
     if args.command == "check":
         return _check(args.spot_id, args.all, args.hours, args.skill)
+    if args.command == "db":
+        return _db_init()
     return 2
+
+
+def _db_init() -> int:
+    try:
+        conn = connect()
+        try:
+            init_schema(conn)
+        finally:
+            conn.close()
+    except (psycopg.Error, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print("database schema initialized")
+    return 0
 
 
 def _ingest(source_id: str | None) -> int:

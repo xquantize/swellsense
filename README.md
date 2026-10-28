@@ -43,9 +43,11 @@ Requires macOS or Linux, [uv](https://docs.astral.sh/uv/) and [Ollama](https://o
 ollama pull qwen3:8b
 uv sync
 cp .env.example .env
+docker compose up -d
+uv run swellsense db init
 ```
 
-In `.env`, set `HTTP_USER_AGENT` to identify the project to source sites, for example `SwellSense/0.1 (https://github.com/<you>/swellsense)`.
+In `.env`, set `HTTP_USER_AGENT` to identify the project to source sites, for example `SwellSense/0.1 (https://github.com/<you>/swellsense)`. Postgres runs locally via Docker Compose; `DATABASE_URL` in `.env.example` matches the compose service.
 
 ## Commands
 
@@ -61,6 +63,8 @@ In `.env`, set `HTTP_USER_AGENT` to identify the project to source sites, for ex
 | `uv run swellsense check mount-main-beach` | Rate the next 12 hours at a spot |
 | `uv run swellsense check --all` | Rank every spot by its best hour, showing ties as ties |
 | `uv run swellsense check --all --skill beginner` | Rank spots at a skill level, and list the harder ones |
+| `docker compose up -d` | Start local Postgres with pgvector (localhost only) |
+| `uv run swellsense db init` | Create the documents and chunks schema |
 | `bash scripts/check.sh` | Lint, format check and tests |
 
 ## Data and licensing
@@ -80,6 +84,8 @@ src/swellsense/
   llm/          the only code that talks to the LLM
   extraction/   structured extraction (board specs, unit parsing)
   ingest/       source registry, fetchers, storage, ingest runs
+  processing/   cleaning and chunking raw documents
+  db/           local Postgres connection and schema
   spots/        spot profiles
   tides/        LINZ tide predictions and tide state
   forecast/     Open-Meteo swell and wind for one spot
