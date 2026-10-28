@@ -37,26 +37,24 @@ def _sentences_for_section(section_text: str) -> list[str]:
     return sentences
 
 
-def _merge_short_tail(chunk_texts: list[str], overlap_words: int) -> list[str]:
+def _merge_short_tail(
+    chunk_texts: list[str],
+    prefix_lengths: list[int],
+    overlap_words: int,
+) -> list[str]:
     if len(chunk_texts) < 2:
         return chunk_texts
     last = chunk_texts[-1]
     prev = chunk_texts[-2]
+    tail_prefix = prefix_lengths[-1]
     last_word_list = last.split()
-    expected_prefix = _last_n_words(prev, overlap_words).split()
-    if (
-        len(last_word_list) >= overlap_words
-        and last_word_list[:overlap_words] == expected_prefix
-    ):
-        new_word_count = len(last_word_list) - overlap_words
-        suffix = " ".join(last_word_list[overlap_words:])
-    else:
-        new_word_count = len(last_word_list)
-        suffix = last
+    new_word_count = len(last_word_list) - tail_prefix
+    suffix = " ".join(last_word_list[tail_prefix:]) if tail_prefix else last
     if new_word_count >= overlap_words:
         return chunk_texts
     if suffix:
         chunk_texts[-2] = f"{prev} {suffix}".strip()
+    prefix_lengths.pop()
     chunk_texts.pop()
     return chunk_texts
 
@@ -75,6 +73,7 @@ def _chunk_section(
         return []
 
     chunk_texts: list[str] = []
+    prefix_lengths: list[int] = []
     index = 0
     while index < len(sentences):
         if not chunk_texts:
@@ -93,6 +92,7 @@ def _chunk_section(
             if sentence_words > max_words:
                 if packed_words == prefix_words and not packed:
                     chunk_texts.append(sentence)
+                    prefix_lengths.append(0)
                     index += 1
                 break
             if packed_words + sentence_words > max_words:
@@ -104,18 +104,28 @@ def _chunk_section(
         if packed:
             body = " ".join(packed)
             chunk_texts.append(f"{prefix} {body}".strip() if prefix else body)
+            prefix_lengths.append(prefix_words)
         elif start == index and index < len(sentences):
             sentence = sentences[index]
-            if count_words(sentence) > max_words:
+            sentence_words = count_words(sentence)
+            if sentence_words > max_words:
                 chunk_texts.append(sentence)
+                prefix_lengths.append(0)
                 index += 1
             elif prefix:
-                chunk_texts.append(f"{prefix} {sentence}".strip())
+                allowed_prefix = max(0, max_words - sentence_words)
+                if prefix_words > allowed_prefix:
+                    prefix = _last_n_words(chunk_texts[-1], allowed_prefix)
+                    prefix_words = allowed_prefix
+                chunk_texts.append(
+                    f"{prefix} {sentence}".strip() if prefix else sentence
+                )
+                prefix_lengths.append(prefix_words)
                 index += 1
             else:
                 break
 
-    return _merge_short_tail(chunk_texts, overlap_words)
+    return _merge_short_tail(chunk_texts, prefix_lengths, overlap_words)
 
 
 def chunk_document(
@@ -126,10 +136,13 @@ def chunk_document(
     """Split a raw document into chunks that carry citation metadata for retrieval.
 
     Chunks never cross section boundaries. After the first chunk in a section, each
-    chunk starts with the last ``overlap_words`` words of the previous chunk (word-based,
-    so the boundary may fall mid-sentence). A chunk may exceed ``max_words`` only when
-    a single sentence is longer than ``max_words``, or when a short trailing chunk is
-    merged into the previous one (by less than ``overlap_words`` words).
+    chunk normally starts with the last ``overlap_words`` words of the previous chunk
+    (word-based, so the boundary may fall mid-sentence). If that full overlap plus the
+    next sentence would exceed ``max_words``, the prefix is shortened so the chunk stays
+    within ``max_words`` (possibly to zero overlap words). A chunk may exceed
+    ``max_words`` only when a single sentence is longer than ``max_words``, or when a
+    short trailing chunk is merged into the previous one (by less than ``overlap_words``
+    words).
     """
     if overlap_words < 0 or overlap_words >= max_words:
         raise ValueError("overlap_words must satisfy 0 <= overlap_words < max_words")

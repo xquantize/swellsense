@@ -6,7 +6,7 @@ import pytest
 
 from swellsense.ingest.models import RawDocument, hash_text
 from swellsense.ingest.store import slugify
-from swellsense.processing.chunk import chunk_document
+from swellsense.processing.chunk import _chunk_section, chunk_document
 
 
 def _document(**overrides) -> RawDocument:
@@ -69,15 +69,47 @@ def test_section_at_max_words_is_one_chunk():
 def test_no_chunk_exceeds_max_words_except_documented_cases():
     max_words = 15
     overlap = 3
-    # Three sentences of 6 words each -> multiple chunks with overlap.
-    text = f"== Body ==\n{_sentences([6, 6, 6, 6])}"
+    cases = [
+        [6, 6, 6, 6],
+        # Sentence lengths in (max - overlap, max]: prefix shrink must cap chunks.
+        [10, 10],
+        [12, 12],
+        [14, 14],
+        [15],
+    ]
+    for word_counts in cases:
+        text = f"== Body ==\n{_sentences(word_counts)}"
+        chunks = chunk_document(
+            _document(text=text), max_words=max_words, overlap_words=overlap
+        )
+        for chunk in chunks:
+            if chunk.word_count > max_words:
+                # Over-long single sentence or merged tail exception.
+                assert chunk.word_count < max_words + overlap
+
+
+def test_two_max_sized_sentences_stay_within_cap():
+    max_words = 10
+    overlap = 3
+    text = f"== Cap ==\n{_sentences([10, 10])}"
     chunks = chunk_document(
         _document(text=text), max_words=max_words, overlap_words=overlap
     )
-    for chunk in chunks:
-        if chunk.word_count > max_words:
-            # Over-long single sentence or merged tail exception.
-            assert chunk.word_count < max_words + overlap
+    assert [c.word_count for c in chunks] == [10, 10]
+
+
+def test_prefix_shrinks_when_overlap_plus_sentence_exceeds_max():
+    max_words = 10
+    overlap = 3
+    section = _sentences([10, 10])
+    chunks = _chunk_section(section, max_words=max_words, overlap_words=overlap)
+    assert len(chunks) == 2
+    assert all(len(c.split()) <= max_words for c in chunks)
+    second = chunks[1].split()
+    first = chunks[0].split()
+    # Second chunk: 10-word sentence; only 0 prefix words fit (10 + 10 > max).
+    assert second[-10:] == first[-10:]
+    assert second[:3] != first[-3:]
 
 
 def test_overlap_between_neighbours_in_section():
@@ -118,18 +150,15 @@ def test_chunks_do_not_cross_sections():
 def test_short_tail_is_merged():
     max_words = 20
     overlap = 5
-    # Sized so the final chunk would have fewer than overlap new words.
-    text = f"== Tail ==\n{_sentences([8, 8, 3])}"
+    # Splits then merges: [10, 9] in first chunk, tail has < overlap new words.
+    text = f"== Tail ==\n{_sentences([10, 9, 3])}"
     chunks = chunk_document(
         _document(text=text), max_words=max_words, overlap_words=overlap
     )
     section_chunks = [c for c in chunks if c.section == "Tail"]
-    assert len(section_chunks) >= 1
-    last = section_chunks[-1]
-    last_words = last.text.split()
-    if len(section_chunks) >= 2:
-        prev = section_chunks[-2]
-        assert last_words[:overlap] == prev.text.split()[-overlap:]
+    assert len(section_chunks) == 1
+    merged = section_chunks[0]
+    assert max_words < merged.word_count < max_words + overlap
 
 
 def test_overlong_single_sentence_is_kept_whole():
