@@ -10,6 +10,7 @@ Early development. What works today:
 
 - **Terminal chat** with a local model through Ollama. Conditions questions ("is it worth surfing?", "where should I go?") are answered from the conditions check. The model chooses the tool and phrases the result; the score is computed in code. Other answers are not grounded in sources yet, so treat those with caution.
 - **Knowledge ingestion**: downloads surf knowledge from Wikipedia into local storage, keeping the source URL, license and attribution on every document.
+- **Processing**: cleans and chunks ingested pages, embeds new or changed chunks via the configured provider, and stores them in local Postgres for retrieval.
 - **Tauranga tides**: prints LINZ high and low waters for a day, with the required acknowledgement.
 - **Spot forecast**: hourly swell, wind waves and wind for a Bay of Plenty spot, from Open-Meteo.
 - **Conditions check**: rates the next few hours at a spot from that forecast, the tide and the spot profile, or ranks every spot by its best hour. Tied scores share a rank, and a skill level leaves harder spots on a separate list.
@@ -56,6 +57,7 @@ In `.env`, set `HTTP_USER_AGENT` to identify the project to source sites, for ex
 | `uv run python -m swellsense.chatbot` | Chat in the terminal (needs Ollama). Conditions questions use the live check |
 | `uv run swellsense ingest` | Download all sources into `data/raw/` |
 | `uv run swellsense ingest --source wikipedia` | Download a single source |
+| `uv run swellsense process` | Clean, chunk and embed `data/raw/` into Postgres |
 | `uv run swellsense tides` | Print today's Tauranga highs and lows |
 | `uv run swellsense tides --date 2026-01-15` | Print one day's Tauranga tides |
 | `uv run swellsense forecast mount-main-beach` | Print 12 hours of swell and wind for a spot |
@@ -84,7 +86,7 @@ src/swellsense/
   llm/          the only code that talks to the LLM
   extraction/   structured extraction (board specs, unit parsing)
   ingest/       source registry, fetchers, storage, ingest runs
-  processing/   cleaning and chunking raw documents
+  processing/   cleaning, chunking, and the process run
   db/           local Postgres connection and schema
   spots/        spot profiles
   tides/        LINZ tide predictions and tide state
@@ -102,7 +104,7 @@ scripts/check.sh    the single check command
 
 - [x] Foundations: provider-agnostic LLM client, structured extraction
 - [x] Knowledge ingestion: source registry, fetching, raw storage
-- [ ] Processing: cleaning, chunking, embeddings, Postgres with pgvector
+- [x] Processing: cleaning, chunking, embeddings, Postgres with pgvector
 - [ ] Grounded chat: retrieval with citations
 - [ ] Live conditions: forecast, tides, classifiers, an explainable conditions check and a ranking are in. The chatbot answers a spot check or "where should I go" from those tools. Other answers are not grounded in sources yet.
 - [ ] Spots and maps: spot profiles and "where to surf" recommendations

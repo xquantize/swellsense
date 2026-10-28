@@ -6,6 +6,7 @@
 ``check`` rates a spot, or ranks every spot by its best hour. Ties share a
 rank. ``--skill`` keeps harder spots in a separate list.
 ``db init`` creates the local Postgres schema (pgvector, documents, chunks).
+``process`` cleans, chunks and embeds raw pages into Postgres.
 """
 
 import argparse
@@ -13,6 +14,7 @@ import sys
 from datetime import date, datetime, timedelta
 
 import httpx
+import openai
 import psycopg
 
 from swellsense.conditions.rating import HourRating
@@ -28,6 +30,9 @@ from swellsense.forecast.openmeteo import fetch_forecast
 from swellsense.ingest.fetchers.mediawiki import make_client
 from swellsense.ingest.registry import load_sources
 from swellsense.ingest.run import SourceReport, ingest
+from swellsense.ingest.store import load_all
+from swellsense.llm.embeddings import embed
+from swellsense.processing.run import PostgresChunkStore, ProcessReport, process
 from swellsense.spots.models import Spot
 from swellsense.spots.registry import get_spot, load_spots
 from swellsense.tides.linz import (
@@ -53,6 +58,11 @@ def _main(argv: list[str] | None = None) -> int:
     )
     ingest_parser.add_argument(
         "--source", metavar="ID", help="Download only this source"
+    )
+
+    subparsers.add_parser(
+        "process",
+        help="Clean, chunk and embed data/raw into Postgres",
     )
 
     tides_parser = subparsers.add_parser(
@@ -114,6 +124,8 @@ def _main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "ingest":
         return _ingest(args.source)
+    if args.command == "process":
+        return _process()
     if args.command == "tides":
         return _tides(args.date)
     if args.command == "forecast":
@@ -137,6 +149,29 @@ def _db_init() -> int:
         print(str(exc), file=sys.stderr)
         return 1
     print("database schema initialized")
+    return 0
+
+
+def _process() -> int:
+    try:
+        docs = load_all()
+        conn = connect()
+        try:
+            report = process(
+                docs,
+                lambda texts: embed(texts, "document"),
+                PostgresChunkStore(conn),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except (psycopg.Error, openai.APIError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    print(_process_summary(report))
+    if report.failed:
+        return 1
     return 0
 
 
@@ -437,6 +472,14 @@ def _print_tides(day: date, events: list[TideEvent]) -> None:
         clock = event.time.strftime("%H:%M")
         print(f"{clock}  {event.kind:<4}  {event.height_m:.1f} m")
     print(LINZ_ATTRIBUTION)
+
+
+def _process_summary(report: ProcessReport) -> str:
+    return (
+        f"process: {report.documents} documents, {report.embedded} embedded, "
+        f"{report.unchanged} unchanged, {report.removed} removed, "
+        f"{len(report.failed)} failed"
+    )
 
 
 def _summary(source_id: str, report: SourceReport) -> str:
