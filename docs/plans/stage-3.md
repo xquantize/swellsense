@@ -15,7 +15,7 @@
 - [x] Slice 3: Embedding function in `swellsense.llm`
 - [x] Slice 4: Local Postgres, schema and `swellsense db init`
 - [x] Slice 7: Postgres service container in CI
-- [ ] Slice 5: Chunk store (upsert, prune, nearest)
+- [x] Slice 5: Chunk store (upsert, prune, nearest)
 - [ ] Slice 6: `swellsense process` end to end
 
 Slices are run one at a time, in the order above.
