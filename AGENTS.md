@@ -56,6 +56,7 @@ code, with short docstrings explaining why.
 - `src/swellsense/llm/`: the only code that talks to the LLM API
 - `src/swellsense/extraction/`: structured extraction (boards, unit parsing)
 - `src/swellsense/ingest/`: source registry, fetchers, raw document storage, ingest runs
+- `src/swellsense/processing/`: cleaning and chunking raw documents
 - `src/swellsense/spots/`: spot profiles and the registry that loads them
 - `src/swellsense/tides/`: LINZ Tauranga predictions and tide state at a time
 - `src/swellsense/forecast/`: Open-Meteo swell and wind for one spot
