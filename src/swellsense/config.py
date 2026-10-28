@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     request_delay_s: float = 1.0
     chunk_words: int = 300
     chunk_overlap_words: int = 50
+    embedding_model: str = "nomic-embed-text"
+    embedding_dimensions: int = 768
+    embedding_batch_size: int = 32
 
 
 @lru_cache
