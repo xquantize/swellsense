@@ -3,12 +3,15 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 import httpx
+import openai
+import psycopg
 import pytest
 
 from swellsense.cli import main
 from swellsense.forecast.models import AUCKLAND, HourlyConditions, SpotForecast
 from swellsense.forecast.openmeteo import OPEN_METEO_ATTRIBUTION
 from swellsense.ingest.run import RunReport, SourceReport
+from swellsense.processing.run import ProcessReport
 from swellsense.spots.models import Spot
 from swellsense.tides.linz import LINZ_ATTRIBUTION
 
@@ -47,6 +50,83 @@ def test_summary_line_and_exit_1_when_an_article_fails(capsys, monkeypatch):
     assert capsys.readouterr().out == (
         "wikipedia: 8 saved, 0 unchanged, 0 missing, 1 failed\n"
     )
+
+
+def test_process_summary_and_exit_0(capsys, monkeypatch):
+    report = ProcessReport(documents=3, embedded=5, unchanged=10, removed=1)
+
+    monkeypatch.setattr("swellsense.cli.load_all", list)
+    monkeypatch.setattr("swellsense.cli.connect", lambda: _FakeConn())
+    monkeypatch.setattr("swellsense.cli.process", lambda *args, **kwargs: report)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["process"])
+
+    assert caught.value.code == 0
+    assert capsys.readouterr().out == (
+        "process: 3 documents, 5 embedded, 10 unchanged, 1 removed, 0 failed\n"
+    )
+
+
+def test_process_exits_1_when_a_document_fails(capsys, monkeypatch):
+    report = ProcessReport(
+        documents=1,
+        failed=[{"id": "wikipedia/bad", "error": "boom"}],
+    )
+
+    monkeypatch.setattr("swellsense.cli.load_all", list)
+    monkeypatch.setattr("swellsense.cli.connect", lambda: _FakeConn())
+    monkeypatch.setattr("swellsense.cli.process", lambda *args, **kwargs: report)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["process"])
+
+    assert caught.value.code == 1
+    assert capsys.readouterr().out.endswith("1 failed\n")
+
+
+def test_process_postgres_unreachable_exits_1(capsys, monkeypatch):
+    def fail():
+        raise psycopg.OperationalError("connection refused")
+
+    monkeypatch.setattr("swellsense.cli.load_all", list)
+    monkeypatch.setattr("swellsense.cli.connect", fail)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["process"])
+
+    assert caught.value.code == 1
+    assert capsys.readouterr().err.strip() == "connection refused"
+
+
+def test_process_ollama_unreachable_exits_1(capsys, monkeypatch):
+    conn = _FakeConn()
+
+    def fail_process(*args, **kwargs):
+        del args, kwargs
+        raise openai.APIConnectionError(message="connection failed", request=None)
+
+    monkeypatch.setattr("swellsense.cli.load_all", list)
+    monkeypatch.setattr("swellsense.cli.connect", lambda: conn)
+    monkeypatch.setattr("swellsense.cli.process", fail_process)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["process"])
+
+    assert caught.value.code == 1
+    assert capsys.readouterr().err.strip() == "connection failed"
+    assert not conn.committed
+
+
+class _FakeConn:
+    def __init__(self) -> None:
+        self.committed = False
+
+    def commit(self) -> None:
+        self.committed = True
+
+    def close(self) -> None:
+        return None
 
 
 def test_prints_one_line_per_source_and_exits_0(capsys, monkeypatch):

@@ -56,6 +56,8 @@ code, with short docstrings explaining why.
 - `src/swellsense/llm/`: the only code that talks to the LLM API
 - `src/swellsense/extraction/`: structured extraction (boards, unit parsing)
 - `src/swellsense/ingest/`: source registry, fetchers, raw document storage, ingest runs
+- `src/swellsense/processing/`: cleaning, chunking, and the process run
+- `src/swellsense/db/`: local Postgres connection and schema
 - `src/swellsense/spots/`: spot profiles and the registry that loads them
 - `src/swellsense/tides/`: LINZ Tauranga predictions and tide state at a time
 - `src/swellsense/forecast/`: Open-Meteo swell and wind for one spot
@@ -74,15 +76,17 @@ code, with short docstrings explaining why.
 - Verify changes: `bash scripts/check.sh` (lint, format check, then tests; stops at the first failure)
 - Apply lint and format fixes: `uv run ruff check --fix && uv run ruff format`
 - Download sources: `uv run swellsense ingest` (or `--source ID` for one)
+- Process raw pages: `uv run swellsense process` (reads `data/raw/`, embeds via the configured provider, upserts into local Postgres)
 - Tauranga tides: `uv run swellsense tides` (or `--date YYYY-MM-DD`)
 - Spot forecast: `uv run swellsense forecast SPOT` (or `--hours N`, default 12)
 - Conditions check: `uv run swellsense check SPOT` (or `--hours N`, default 12); `uv run swellsense check --all` ranks every spot, with ties shown as ties; `--skill LEVEL` lists harder spots separately
 - Chat: `uv run python -m swellsense.chatbot` (conditions questions use the spot tools)
+- Local Postgres: `docker compose up -d`, then `uv run swellsense db init`
 
 ## Roadmap
 1. [x] Foundations: provider-agnostic LLM client, structured extraction
 2. [x] Knowledge ingestion: source registry, fetching, raw storage
-3. [ ] Processing: cleaning, chunking, local embeddings, Postgres + pgvector (in progress)
+3. [x] Processing: cleaning, chunking, local embeddings, Postgres + pgvector
 4. [ ] Grounded chat: retrieval with citations
 5. [ ] Live conditions: forecast, tides, classifiers, an explainable conditions check and a ranking are in. The chatbot answers a spot check or "where should I go" from those tools. Other answers are not grounded in sources yet.
 6. [ ] Spots and maps: spot data and profiles, "where to surf" recommendations
@@ -115,4 +119,5 @@ Work on the current roadmap stage unless asked otherwise. Don't build ahead.
 - Use `uv` for Python 3.13 (`.python-version`). The image's system Python may be older; `uv sync --locked` installs the pinned interpreter.
 - Checks: `bash scripts/check.sh`. Tests must not call the network or the LLM.
 - There is no dev server. `uv run swellsense ingest` downloads every source into `data/raw/` and writes `data/raw/_last_run.json`. `uv run swellsense ingest --source ID` downloads one source. `uv run swellsense tides` prints Tauranga high and low waters for today and caches the LINZ CSV under `data/cache/`. `uv run swellsense forecast SPOT` prints an Open-Meteo swell and wind table and caches it under `data/cache/forecast/` for one hour. `uv run swellsense check SPOT` rates the next 12 hours and `uv run swellsense check --all` ranks every spot (ties share a rank; `--skill LEVEL` lists harder spots as above your level); both use those caches. Loading `data/sources.yaml` with `swellsense.ingest.registry.load_sources` and parsing board dimensions with `swellsense.extraction.units.parse_dimension` exercises the current product path.
+- `uv run swellsense process` reads `data/raw/`, embeds via the configured provider, and upserts into local Postgres (same Ollama embeddings endpoint as the LLM). Postgres is not started in Cloud; tests mock the database and embedder.
 - `uv run python -m swellsense.chatbot` expects a local OpenAI-compatible server (default `http://localhost:11434/v1`, see `.env.example`). The environment does not start that server. A conditions question also fetches the Open-Meteo forecast and LINZ tides; tests mock both.

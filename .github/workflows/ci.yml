@@ -8,6 +8,22 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://swellsense:swellsense@127.0.0.1:5432/swellsense
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: swellsense
+          POSTGRES_PASSWORD: swellsense
+          POSTGRES_DB: swellsense
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U swellsense -d swellsense"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
