@@ -57,6 +57,7 @@ code, with short docstrings explaining why.
 - `src/swellsense/extraction/`: structured extraction (boards, unit parsing)
 - `src/swellsense/ingest/`: source registry, fetchers, raw document storage, ingest runs
 - `src/swellsense/processing/`: cleaning and chunking raw documents
+- `src/swellsense/db/`: local Postgres connection and schema
 - `src/swellsense/spots/`: spot profiles and the registry that loads them
 - `src/swellsense/tides/`: LINZ Tauranga predictions and tide state at a time
 - `src/swellsense/forecast/`: Open-Meteo swell and wind for one spot
@@ -79,6 +80,7 @@ code, with short docstrings explaining why.
 - Spot forecast: `uv run swellsense forecast SPOT` (or `--hours N`, default 12)
 - Conditions check: `uv run swellsense check SPOT` (or `--hours N`, default 12); `uv run swellsense check --all` ranks every spot, with ties shown as ties; `--skill LEVEL` lists harder spots separately
 - Chat: `uv run python -m swellsense.chatbot` (conditions questions use the spot tools)
+- Local Postgres: `docker compose up -d`, then `uv run swellsense db init`
 
 ## Roadmap
 1. [x] Foundations: provider-agnostic LLM client, structured extraction

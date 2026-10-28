@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     embedding_model: str = "nomic-embed-text"
     embedding_dimensions: int = 768
     embedding_batch_size: int = 32
+    database_url: SecretStr = SecretStr(
+        "postgresql://swellsense:swellsense@127.0.0.1:5432/swellsense"
+    )
 
 
 @lru_cache

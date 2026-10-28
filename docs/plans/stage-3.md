@@ -13,7 +13,7 @@
 - [x] Slice 1: Clean raw pages into sections
 - [x] Slice 2: Chunk a document with its citation metadata
 - [x] Slice 3: Embedding function in `swellsense.llm`
-- [ ] Slice 4: Local Postgres, schema and `swellsense db init`
+- [x] Slice 4: Local Postgres, schema and `swellsense db init`
 - [ ] Slice 7: Postgres service container in CI
 - [ ] Slice 5: Chunk store (upsert, prune, nearest)
 - [ ] Slice 6: `swellsense process` end to end

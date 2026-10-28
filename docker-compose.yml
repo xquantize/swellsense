@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: swellsense
+      POSTGRES_PASSWORD: swellsense
+      POSTGRES_DB: swellsense
+    volumes:
+      - swellsense_pgdata:/var/lib/postgresql/data
+
+volumes:
+  swellsense_pgdata:
