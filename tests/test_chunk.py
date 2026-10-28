@@ -4,9 +4,13 @@ from datetime import UTC, datetime
 
 import pytest
 
-from swellsense.ingest.models import RawDocument, hash_text
+from swellsense.ingest.models import RawDocument, count_words, hash_text
 from swellsense.ingest.store import slugify
-from swellsense.processing.chunk import _chunk_section, chunk_document
+from swellsense.processing.chunk import (
+    _chunk_section,
+    _sentences_for_section,
+    chunk_document,
+)
 
 
 def _document(**overrides) -> RawDocument:
@@ -217,3 +221,36 @@ def test_invalid_overlap_raises(overlap_words: int):
 def test_overlap_equal_to_max_words_raises():
     with pytest.raises(ValueError, match="overlap_words"):
         chunk_document(_document(), max_words=10, overlap_words=10)
+
+
+def test_glossary_lines_are_separate_packing_units():
+    max_words = 30
+    close_out = "Close-out: A wave that breaks all at once"
+    drop_in = "Drop-in: The surfer with priority catches the wave"
+    section = f"{close_out}\n{drop_in}"
+    assert _sentences_for_section(section, max_words=max_words) == [
+        close_out,
+        drop_in,
+    ]
+
+
+def test_glossary_line_keeps_multiple_sentences_on_one_line():
+    max_words = 30
+    entry = "Close-out: A wave that breaks all at once. This leaves no shoulder."
+    assert _sentences_for_section(entry, max_words=max_words) == [entry]
+
+
+def test_glossary_lines_space_joined_when_packed_in_one_chunk():
+    lines = [
+        "Close-out: A wave that breaks all at once",
+        "Drop-in: The surfer with priority catches the wave",
+        "Frothing: Very excited about surfing",
+        "Grom: A young beginner surfer",
+    ]
+    section = "\n".join(lines)
+    max_words = 25
+    assert count_words(section) > max_words
+    chunks = _chunk_section(section, max_words=max_words, overlap_words=2)
+    packed = f"{lines[0]} {lines[1]} {lines[2]}"
+    assert any(packed in chunk for chunk in chunks)
+    assert not any(f"{lines[0]}\n{lines[1]}" in chunk for chunk in chunks)

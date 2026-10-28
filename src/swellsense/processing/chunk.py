@@ -30,11 +30,17 @@ def _last_n_words(text: str, n: int) -> str:
     return " ".join(words[-n:])
 
 
-def _sentences_for_section(section_text: str) -> list[str]:
-    sentences: list[str] = []
+def _sentences_for_section(section_text: str, max_words: int) -> list[str]:
+    """Packing units for one section: lines first, then sentences only on long lines."""
+    units: list[str] = []
     for paragraph in _split_paragraphs(section_text):
-        sentences.extend(_split_sentences(paragraph))
-    return sentences
+        lines = [line.strip() for line in paragraph.split("\n") if line.strip()]
+        for line in lines:
+            if count_words(line) <= max_words:
+                units.append(line)
+            else:
+                units.extend(_split_sentences(line))
+    return units
 
 
 def _merge_short_tail(
@@ -68,7 +74,7 @@ def _chunk_section(
     if count_words(section_text) <= max_words:
         return [section_text]
 
-    sentences = _sentences_for_section(section_text)
+    sentences = _sentences_for_section(section_text, max_words)
     if not sentences:
         return []
 
