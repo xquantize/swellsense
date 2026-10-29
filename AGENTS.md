@@ -57,6 +57,7 @@ code, with short docstrings explaining why.
 - `src/swellsense/extraction/`: structured extraction (boards, unit parsing)
 - `src/swellsense/ingest/`: source registry, fetchers, raw document storage, ingest runs
 - `src/swellsense/processing/`: cleaning, chunking, and the process run
+- `src/swellsense/retrieval/`: vector search over stored chunks
 - `src/swellsense/db/`: local Postgres connection and schema
 - `src/swellsense/spots/`: spot profiles and the registry that loads them
 - `src/swellsense/tides/`: LINZ Tauranga predictions and tide state at a time
@@ -77,6 +78,7 @@ code, with short docstrings explaining why.
 - Apply lint and format fixes: `uv run ruff check --fix && uv run ruff format`
 - Download sources: `uv run swellsense ingest` (or `--source ID` for one)
 - Process raw pages: `uv run swellsense process` (reads `data/raw/`, embeds via the configured provider, upserts into local Postgres)
+- Vector search (debug): `uv run swellsense search "QUESTION"` (optional `--k N`, default 5)
 - Tauranga tides: `uv run swellsense tides` (or `--date YYYY-MM-DD`)
 - Spot forecast: `uv run swellsense forecast SPOT` (or `--hours N`, default 12)
 - Conditions check: `uv run swellsense check SPOT` (or `--hours N`, default 12); `uv run swellsense check --all` ranks every spot, with ties shown as ties; `--skill LEVEL` lists harder spots separately

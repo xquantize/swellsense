@@ -8,6 +8,7 @@ import psycopg
 import pytest
 
 from swellsense.cli import main
+from swellsense.db.chunks import ChunkHit
 from swellsense.forecast.models import AUCKLAND, HourlyConditions, SpotForecast
 from swellsense.forecast.openmeteo import OPEN_METEO_ATTRIBUTION
 from swellsense.ingest.run import RunReport, SourceReport
@@ -97,6 +98,100 @@ def test_process_postgres_unreachable_exits_1(capsys, monkeypatch):
 
     assert caught.value.code == 1
     assert capsys.readouterr().err.strip() == "connection refused"
+
+
+def _search_hit(
+    *,
+    title: str = "Surfing",
+    section: str = "Rips",
+    url: str = "https://example.test/surfing",
+    text: str = "Short chunk text.",
+    distance: float = 0.4567,
+) -> ChunkHit:
+    return ChunkHit(
+        id="doc#0",
+        document_id="doc",
+        index=0,
+        section=section,
+        text=text,
+        title=title,
+        url=url,
+        license="CC BY-SA 4.0",
+        attribution="Wiki",
+        usage="open",
+        distance=distance,
+    )
+
+
+def test_search_prints_hits_and_exits_0(capsys, monkeypatch):
+    long_text = " ".join(f"w{i}" for i in range(30))
+    hits = [
+        _search_hit(distance=0.4567, text=long_text),
+        _search_hit(
+            title="Swell",
+            section="Period",
+            url="https://example.test/swell",
+            text="Only five words here total",
+            distance=1.0,
+        ),
+    ]
+
+    monkeypatch.setattr("swellsense.cli.connect", lambda: _FakeConn())
+    monkeypatch.setattr("swellsense.cli.retrieve", lambda conn, query, k: hits)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["search", "rip", "currents", "--k", "2"])
+
+    assert caught.value.code == 0
+    out = capsys.readouterr().out
+    assert out.startswith("1. 0.457\nSurfing > Rips\nhttps://example.test/surfing\n")
+    preview = " ".join(f"w{i}" for i in range(25)) + "..."
+    assert preview in out
+    assert (
+        "2. 1.000\n"
+        "Swell > Period\n"
+        "https://example.test/swell\n"
+        "Only five words here total\n"
+    ) in out
+
+
+def test_search_no_results_exits_0(capsys, monkeypatch):
+    monkeypatch.setattr("swellsense.cli.connect", lambda: _FakeConn())
+    monkeypatch.setattr("swellsense.cli.retrieve", lambda conn, query, k: [])
+
+    with pytest.raises(SystemExit) as caught:
+        main(["search", "nothing"])
+
+    assert caught.value.code == 0
+    assert capsys.readouterr().out == "No results.\n"
+
+
+def test_search_postgres_unreachable_exits_1(capsys, monkeypatch):
+    def fail():
+        raise psycopg.OperationalError("connection refused")
+
+    monkeypatch.setattr("swellsense.cli.connect", fail)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["search", "swell"])
+
+    assert caught.value.code == 1
+    assert capsys.readouterr().err.strip() == "connection refused"
+
+
+def test_search_ollama_unreachable_exits_1(capsys, monkeypatch):
+    def fail_retrieve(*args, **kwargs):
+        del args, kwargs
+        raise openai.APIConnectionError(message="connection failed", request=None)
+
+    monkeypatch.setattr("swellsense.cli.connect", lambda: _FakeConn())
+    monkeypatch.setattr("swellsense.cli.retrieve", fail_retrieve)
+
+    with pytest.raises(SystemExit) as caught:
+        main(["search", "swell"])
+
+    assert caught.value.code == 1
+    assert capsys.readouterr().err.strip() == "connection failed"
 
 
 def test_process_ollama_unreachable_exits_1(capsys, monkeypatch):

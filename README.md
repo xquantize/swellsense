@@ -58,6 +58,8 @@ In `.env`, set `HTTP_USER_AGENT` to identify the project to source sites, for ex
 | `uv run swellsense ingest` | Download all sources into `data/raw/` |
 | `uv run swellsense ingest --source wikipedia` | Download a single source |
 | `uv run swellsense process` | Clean, chunk and embed `data/raw/` into Postgres |
+| `uv run swellsense search "what is a rip?"` | Vector search over embedded chunks (debug) |
+| `uv run swellsense search "swell period" --k 10` | Return more nearest chunks |
 | `uv run swellsense tides` | Print today's Tauranga highs and lows |
 | `uv run swellsense tides --date 2026-01-15` | Print one day's Tauranga tides |
 | `uv run swellsense forecast mount-main-beach` | Print 12 hours of swell and wind for a spot |
