@@ -7,6 +7,7 @@
 rank. ``--skill`` keeps harder spots in a separate list.
 ``db init`` creates the local Postgres schema (pgvector, documents, chunks).
 ``process`` cleans, chunks and embeds raw pages into Postgres.
+``search`` runs vector retrieval over stored chunks for debugging.
 """
 
 import argparse
@@ -33,6 +34,7 @@ from swellsense.ingest.run import SourceReport, ingest
 from swellsense.ingest.store import load_all
 from swellsense.llm.embeddings import embed
 from swellsense.processing.run import PostgresChunkStore, ProcessReport, process
+from swellsense.retrieval import retrieve
 from swellsense.spots.models import Spot
 from swellsense.spots.registry import get_spot, load_spots
 from swellsense.tides.linz import (
@@ -63,6 +65,23 @@ def _main(argv: list[str] | None = None) -> int:
     subparsers.add_parser(
         "process",
         help="Clean, chunk and embed data/raw into Postgres",
+    )
+
+    search_parser = subparsers.add_parser(
+        "search",
+        help="Vector search over embedded chunks (debug)",
+    )
+    search_parser.add_argument(
+        "query",
+        nargs="+",
+        metavar="QUESTION",
+        help="Natural-language question",
+    )
+    search_parser.add_argument(
+        "--k",
+        type=int,
+        default=5,
+        help="How many chunks to return (default: 5)",
     )
 
     tides_parser = subparsers.add_parser(
@@ -126,6 +145,8 @@ def _main(argv: list[str] | None = None) -> int:
         return _ingest(args.source)
     if args.command == "process":
         return _process()
+    if args.command == "search":
+        return _search(" ".join(args.query), args.k)
     if args.command == "tides":
         return _tides(args.date)
     if args.command == "forecast":
@@ -149,6 +170,37 @@ def _db_init() -> int:
         print(str(exc), file=sys.stderr)
         return 1
     print("database schema initialized")
+    return 0
+
+
+def _search_preview(text: str, *, word_limit: int = 25) -> str:
+    words = text.split()
+    if len(words) <= word_limit:
+        return text
+    return " ".join(words[:word_limit]) + "..."
+
+
+def _search(query: str, k: int) -> int:
+    try:
+        conn = connect()
+        try:
+            hits = retrieve(conn, query, k)
+        finally:
+            conn.close()
+    except (psycopg.Error, openai.APIError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if not hits:
+        print("No results.")
+        return 0
+
+    for rank, hit in enumerate(hits, start=1):
+        print(f"{rank}. {hit.distance:.3f}")
+        print(f"{hit.title} > {hit.section}")
+        print(hit.url)
+        print(_search_preview(hit.text))
+        print()
     return 0
 
 
